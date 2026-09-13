@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Clara 1912">
+  <rect width="512" height="512" rx="108" fill="#f1efe6"/>
+  <path d="M78 200V78h122M312 434h122V312" fill="none" stroke="#191d12" stroke-width="34"/>
+  <text x="256" y="286" text-anchor="middle" font-family="Georgia,serif" font-size="136" fill="#191d12">CN</text>
+  <text x="256" y="350" text-anchor="middle" font-family="Arial,sans-serif" font-size="38" font-weight="700" letter-spacing="10" fill="#65724f">1912</text>
+</svg>
+
