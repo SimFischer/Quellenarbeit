@@ -1,4 +1,4 @@
-const CACHE_NAME = 'clara-neumann-v2';
+const CACHE_NAME = 'clara-neumann-v3';
 const CORE_FILES = [
   './',
   './index.html',
@@ -34,4 +34,3 @@ self.addEventListener('fetch', event => {
     }).catch(() => caches.match('./index.html')))
   );
 });
-
