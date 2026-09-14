@@ -443,14 +443,6 @@
             </div>
           </article>
 
-          <div class="task-card">
-            <h3><span class="task-number">1</span>Vorgehen des Museums</h3>
-            <p class="instruction"><strong>Nennt</strong>, wie das Museum bei dieser Anfrage vorgehen könnte.</p>
-            <label>Unser Vorschlag
-              <textarea class="essential" data-save="museum_vorgehen" maxlength="900" placeholder="Das Museum könnte zunächst …"></textarea>
-            </label>
-            <div class="char-count" data-for="museum_vorgehen"></div>
-          </div>
           <div class="actions"><span></span><button class="button primary next" data-next="context">Weiter zum Hintergrund</button></div>
         </section>
 
@@ -474,7 +466,7 @@
           </article>
 
           <div class="task-card">
-            <h3><span class="task-number">2</span>Quellengruppe wählen</h3>
+            <h3><span class="task-number">1</span>Quellengruppe wählen</h3>
             <p class="instruction"><strong>Bildet fünf Gruppen.</strong> Jede Gruppe untersucht zunächst nur ihr eigenes Dossier.</p>
             <div class="group-picker" role="radiogroup" aria-label="Quellengruppe">
               <label class="group-option"><input type="radio" name="group" value="A"><span>A</span></label>
@@ -519,10 +511,6 @@
               <h3><span class="task-number">2</span>Informationen herausarbeiten</h3>
               <p class="instruction"><strong>Arbeitet heraus</strong>, welche Informationen eure Quellen über die folgenden Bereiche liefern. Notiert auch, wie sicher die Aussage mit eurem Dossier belegt werden kann.</p>
               <div class="evidence-grid" id="evidenceGrid"></div>
-              <div class="checklist">
-                <label class="checkline"><input type="checkbox" class="essential" data-save="check_beleg"><span>Wir können unsere wichtigsten Aussagen mit konkreten Stellen oder sichtbaren Details belegen.</span></label>
-                <label class="checkline"><input type="checkbox" class="essential" data-save="check_perspektive"><span>Wir haben zwischen dem Inhalt einer Quelle und ihrer Perspektive unterschieden.</span></label>
-              </div>
             </div>
           </div>
           <div class="actions"><button class="button previous" data-next="context">Zurück</button><button class="button primary next" data-next="reconstruct">Erste Rekonstruktion</button></div>
@@ -859,7 +847,7 @@
         view.innerHTML = `<div class="source-panel"><div class="source-heading"><div><p class="eyebrow">${source.id} · ${escapeHtml(source.type)}</p><h3>${escapeHtml(source.title)}</h3></div><button class="button small" id="zoomSource">Vergrößern</button></div><p>${escapeHtml(source.detail)}</p><div class="source-image-wrap"><img src="${pageSrc}" alt="Quellenseite ${source.page} mit ${source.id}"></div><p class="image-note">Auf dieser Archivseite befinden sich mehrere Bild- und Sachquellen. Untersucht besonders ${source.id}; mit „Vergrößern“ könnt ihr die gesamte Seite genau betrachten.</p></div>`;
         document.getElementById('zoomSource').addEventListener('click', () => openImage(pageSrc, `${source.id} · ${source.title}`));
       } else {
-        view.innerHTML = `<div class="source-panel"><div class="source-heading"><div><p class="eyebrow">${source.id} · ${escapeHtml(source.type)}</p><h3>${escapeHtml(source.title)}</h3></div></div><article class="source-sheet">${source.html}</article><p class="image-note">Lesefassung nach dem bereitgestellten Quellendossier. Historische Schreibweisen wurden beibehalten.</p></div>`;
+        view.innerHTML = `<div class="source-panel"><div class="source-heading"><div><p class="eyebrow">${source.id} · ${escapeHtml(source.type)}</p><h3>${escapeHtml(source.title)}</h3></div></div><article class="source-sheet">${source.html}</article></div>`;
       }
     }
 
@@ -919,7 +907,7 @@
       const exchangeParts = Object.keys(sources).map(g => answerHtml(`Austausch mit Gruppe ${g}`, `austausch_${g}`)).join('');
       const claimParts = state.claims.map((c,i) => `<div class="answer-block"><b>Aussage ${i+1}</b>${escapeHtml(c.text || 'Noch nicht eingetragen')} <em>(${escapeHtml(c.decision || 'keine Entscheidung')})</em><br>${escapeHtml(c.reason || '')}</div>`).join('');
       document.getElementById('resultPanel').innerHTML = `
-        <div class="result-section"><h3>Ausgangspunkt</h3><div class="answer-block"><b>Quellengruppe</b>${group}</div>${answerHtml('Vorgehen des Museums', 'museum_vorgehen')}</div>
+        <div class="result-section"><h3>Ausgangspunkt</h3><div class="answer-block"><b>Quellengruppe</b>${group}</div></div>
         <div class="result-section"><h3>Quellenanalyse · Gruppe ${group}</h3>${sourceParts}${evidenceParts}</div>
         <div class="result-section"><h3>Erste Rekonstruktion</h3>${answerHtml('Rekonstruktion', 'erste_rekonstruktion')}${answerHtml('Claras Rolle', 'erste_rolle')}${answerHtml('Offene Frage', 'erste_frage')}</div>
         <div class="result-section"><h3>Austausch</h3>${exchangeParts}</div>
