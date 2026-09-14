@@ -1,4 +1,4 @@
-const CACHE_NAME = 'clara-neumann-v3';
+const CACHE_NAME = 'clara-neumann-v4';
 const CORE_FILES = [
   './',
   './index.html',
@@ -10,6 +10,10 @@ const CORE_FILES = [
   './icon-180.png',
   './icon-512.png'
 ];
+
+// Diese Dateien werden immer zuerst aus dem Netz geladen, damit Änderungen
+// sofort ankommen. Ohne Verbindung wird die zuletzt gespeicherte Fassung genutzt.
+const ALWAYS_FRESH = /\.(html|js|webmanifest)$|\/$/;
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(CORE_FILES)));
@@ -26,11 +30,21 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const requestUrl = new URL(event.request.url);
   if (event.request.method !== 'GET' || requestUrl.origin !== self.location.origin) return;
+
+  const store = response => {
+    const copy = response.clone();
+    caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+    return response;
+  };
+
+  if (event.request.mode === 'navigate' || ALWAYS_FRESH.test(requestUrl.pathname)) {
+    event.respondWith(
+      fetch(event.request).then(store).catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html')))
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-      return response;
-    }).catch(() => caches.match('./index.html')))
+    caches.match(event.request).then(cached => cached || fetch(event.request).then(store).catch(() => caches.match('./index.html')))
   );
 });
