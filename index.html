@@ -709,7 +709,7 @@
   <script>
     const STORAGE_KEY = 'clara-neumann-quellenarbeit-v2';
     const DEVICE_KEY = 'clara-neumann-device-id';
-    const state = { answers: {}, group: '', phase: 'intro', sourceIndex: 0, claims: [], gateOpen: false };
+    const state = { answers: {}, group: '', phase: 'intro', sourceIndex: 0, claims: [], gateOpen: false, gateFor: '' };
 
     const sources = {
       A: [
@@ -1009,7 +1009,7 @@
         app: 'clara-neumann-quellenarbeit',
         version: 2,
         saved_at: new Date().toISOString(),
-        state: {answers: state.answers, group: state.group, phase: state.phase, sourceIndex: state.sourceIndex, claims: state.claims, gateOpen: state.gateOpen}
+        state: {answers: state.answers, group: state.group, phase: state.phase, sourceIndex: state.sourceIndex, claims: state.claims, gateOpen: state.gateOpen, gateFor: state.gateFor}
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json;charset=utf-8'});
       const a = document.createElement('a');
@@ -1036,7 +1036,8 @@
           phase: typeof incoming.phase === 'string' ? incoming.phase : 'intro',
           sourceIndex: Number(incoming.sourceIndex) || 0,
           claims: Array.isArray(incoming.claims) ? incoming.claims : [],
-          gateOpen: Boolean(incoming.gateOpen)
+          gateOpen: Boolean(incoming.gateOpen),
+          gateFor: typeof incoming.gateFor === 'string' ? incoming.gateFor : ''
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
         location.reload();
@@ -1158,12 +1159,39 @@
     }
 
     function gateUnlocked() {
-      return Boolean(state.gateOpen);
+      return Boolean(state.gateOpen) && state.gateFor === classKey();
+    }
+
+    // Beim Start einmal gegenpruefen: Hat die Lehrkraft die Freigabe inzwischen
+    // zurueckgenommen (naechste Stunde, andere Lerngruppe), wird wieder gesperrt.
+    async function revalidateGate() {
+      if (!state.gateOpen || !isLive()) return;
+      const key = classKey();
+      if (!key) return;
+      try {
+        const config = window.APP_CONFIG;
+        const base = config.SUPABASE_URL.replace(/\/$/, '');
+        const response = await fetch(`${base}/rest/v1/class_gates?select=exchange_open&class_key=eq.${encodeURIComponent(key)}`, {
+          headers: {apikey: config.SUPABASE_ANON_KEY, Authorization: `Bearer ${config.SUPABASE_ANON_KEY}`},
+          cache: 'no-store'
+        });
+        if (!response.ok) return;
+        const rows = await response.json();
+        if (Array.isArray(rows) && rows[0] && rows[0].exchange_open) return;
+        state.gateOpen = false;
+        state.gateFor = '';
+        saveState();
+        applyGate();
+        if (LOCKED_PHASES.includes(state.phase)) showPhase('waiting');
+      } catch (_) {
+        // Offline: gespeicherte Freigabe bleibt bestehen.
+      }
     }
 
     function unlockGate(silent = false) {
-      if (!state.gateOpen) {
+      if (!state.gateOpen || state.gateFor !== classKey()) {
         state.gateOpen = true;
+        state.gateFor = classKey();
         saveState();
       }
       applyGate();
@@ -1321,6 +1349,7 @@
       });
       applyGate();
       showPhase(state.phase || 'intro', false);
+      revalidateGate();
       updateProgress();
       updateTimer();
       if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

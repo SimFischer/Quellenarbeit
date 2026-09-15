@@ -45,7 +45,9 @@ Nach Phase 4 gelangen die Schülerinnen und Schüler nicht mehr direkt in die Mi
 
 1. Im Lehrerbereich unter **Mischgruppen freigeben** die Klasse eintragen (Vorschläge kommen aus den bereits eingegangenen Abgaben).
 2. Auf **Freigeben** klicken. Die iPads prüfen alle paar Sekunden automatisch und zeigen dann die Schaltfläche „Weiter zu den Mischgruppen".
-3. **Sperren** setzt die Freigabe für neue Geräte zurück. Geräte, die bereits weitergegangen sind, bleiben in den Mischgruppen.
+3. **Sperren** nimmt die Freigabe zurück. Geräte, die schon weiter sind, arbeiten zunächst weiter und landen beim nächsten Neuladen wieder auf der Warteseite.
+
+Ein iPad merkt sich die Freigabe nur für die eingetragene Klasse und prüft sie bei jedem Start noch einmal nach. Für die nächste Stunde oder eine andere Lerngruppe genügt also **Sperren** – die Geräte starten dann wieder gesperrt, ohne dass jemand den Browserspeicher leeren muss.
 
 Die Zuordnung läuft über das Feld **Klasse / Kurs** aus Phase 1. Groß- und Kleinschreibung spielt keine Rolle, die Schreibweise sollte aber einheitlich sein. Fehlt die Klassenangabe, verweist die Warteseite zurück auf Phase 1.
 
