@@ -223,6 +223,8 @@
     .char-count { margin-top: 5px; color: var(--muted); text-align: right; font-size: .78rem; }
 
     .actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 30px; }
+    .teacher-link { align-self: center; color: var(--muted); font-size: .88rem; text-decoration: underline; text-underline-offset: 3px; }
+    .teacher-link:hover { color: var(--sage-dark); }
     .button {
       display: inline-flex;
       align-items: center;
@@ -471,7 +473,7 @@
             </div>
           </article>
 
-          <div class="actions"><span></span><button class="button primary next" data-next="context">Weiter zum Hintergrund</button></div>
+          <div class="actions"><a class="teacher-link" href="./lehrer.html">Lehrkraft: zum Lehrerbereich</a><button class="button primary next" data-next="context">Weiter zum Hintergrund</button></div>
         </section>
 
         <section class="phase" id="phase-context">
