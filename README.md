@@ -37,6 +37,20 @@ Demodaten werden nur auf diesem Gerät gespeichert. Geräteübergreifende Abgabe
 
 Der öffentliche `anon`-Schlüssel darf in einer Browser-App stehen. Niemals den `service_role`-Schlüssel eintragen. Die SQL-Regeln erlauben Schülern nur neue Abgaben; lesen und markieren dürfen ausschließlich freigeschaltete Lehrkräfte.
 
+Wird ein bereits eingerichtetes Projekt aktualisiert, genügt es, den Abschnitt **„Freigabe der Mischgruppen"** aus `supabase_setup.sql` erneut auszuführen. Er legt die Tabelle `class_gates` an; bestehende Abgaben bleiben unberührt.
+
+## Ablauf: Freigabe der Mischgruppen
+
+Nach Phase 4 gelangen die Schülerinnen und Schüler nicht mehr direkt in die Mischgruppen, sondern auf eine Warteseite. Dort steht, dass die Klasse gleich neu eingeteilt wird: In jeder Mischgruppe sitzt genau eine Person aus jeder Quellengruppe A bis E.
+
+1. Im Lehrerbereich unter **Mischgruppen freigeben** die Klasse eintragen (Vorschläge kommen aus den bereits eingegangenen Abgaben).
+2. Auf **Freigeben** klicken. Die iPads prüfen alle paar Sekunden automatisch und zeigen dann die Schaltfläche „Weiter zu den Mischgruppen".
+3. **Sperren** setzt die Freigabe für neue Geräte zurück. Geräte, die bereits weitergegangen sind, bleiben in den Mischgruppen.
+
+Die Zuordnung läuft über das Feld **Klasse / Kurs** aus Phase 1. Groß- und Kleinschreibung spielt keine Rolle, die Schreibweise sollte aber einheitlich sein. Fehlt die Klassenangabe, verweist die Warteseite zurück auf Phase 1.
+
+Ohne Freigabe kommt niemand weiter – die Phasen 5 bis 7 bleiben in der Seitenleiste gesperrt. Einzige Ausnahme ist der **Notfall-Freigabecode** aus `config.js` (`RELEASE_CODE`): Kann ein iPad die Freigabe mehrfach nicht online prüfen, blendet es ein Codefeld ein. Die Lehrkraft findet den Code in ihrem Bereich unter „Mischgruppen freigeben" und nennt ihn mündlich. Ein leerer `RELEASE_CODE` schaltet diese Möglichkeit ganz ab.
+
 ## 3. Mit GitHub Pages veröffentlichen
 
 1. Lade alle Dateien dieses Ordners in ein GitHub-Repository hoch.

@@ -40,6 +40,7 @@
     .gate-panel h3 { margin:0 0 8px; font-size:1.3rem; }
     .gate-panel .lead { margin-bottom:18px; }
     .gate-controls { display:grid; grid-template-columns:minmax(0,1.6fr) auto auto; gap:10px; align-items:end; }
+    .gate-code { margin:10px 0 0; color:var(--muted); font-size:.9rem; }
     .gate-list { display:flex; flex-wrap:wrap; gap:9px; margin-top:14px; }
     .gate-chip { display:inline-flex; align-items:center; gap:8px; padding:7px 13px; border:1px solid var(--line); border-radius:999px; background:#faf9f3; font-size:.9rem; font-weight:700; }
     .gate-chip i { width:10px; height:10px; border-radius:50%; background:#c8a227; }
@@ -108,6 +109,7 @@
           <button id="gateCloseBtn" class="button soft">Sperren</button>
         </div>
         <div class="status" id="gateStatus" role="status"></div>
+        <p class="gate-code" id="gateCode"></p>
         <div id="gateList" class="gate-list"></div>
       </div>
       <div class="stats">
