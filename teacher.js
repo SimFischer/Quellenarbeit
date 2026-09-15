@@ -49,6 +49,14 @@ async function loadGates() {
     gates = [];
   }
   renderGates();
+  renderGateCode();
+}
+
+function renderGateCode() {
+  const code = String(config.RELEASE_CODE || '').trim();
+  $('#gateCode').textContent = code
+    ? `Notfall-Freigabecode: „${code}“ – nur nennen, wenn ein iPad offline ist und die Freigabe nicht selbst prüfen kann.`
+    : '';
 }
 
 function renderGates() {
