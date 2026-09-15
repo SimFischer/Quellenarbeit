@@ -1,4 +1,4 @@
-const CACHE_NAME = 'clara-neumann-v6';
+const CACHE_NAME = 'clara-neumann-v7';
 const CORE_FILES = [
   './',
   './index.html',
