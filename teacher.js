@@ -91,7 +91,7 @@ async function setGate(open) {
     }
     status.textContent = open
       ? `„${classCode}“ ist freigegeben. Die iPads wechseln innerhalb weniger Sekunden weiter.`
-      : `„${classCode}“ ist wieder gesperrt. Bereits weitergegangene Geräte bleiben in den Mischgruppen.`;
+      : `„${classCode}“ ist wieder gesperrt. Geräte, die schon weiter sind, arbeiten zunächst weiter und landen beim nächsten Neuladen wieder auf der Warteseite.`;
     await loadGates();
   } catch (error) {
     status.textContent = error.message;
