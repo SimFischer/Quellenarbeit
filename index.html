@@ -157,6 +157,9 @@
     .sr-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
     .side-tools { display: grid; gap: 8px; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
+    .tools-label { margin: 6px 0 2px; color: var(--muted); font-size: .72rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    .tools-label:first-child { margin-top: 0; }
+    .tools-hint { margin: 2px 0 8px; color: var(--muted); font-size: .78rem; line-height: 1.4; }
 
     main { min-width: 0; padding: clamp(26px, 5vw, 70px); }
     .phase { display: none; max-width: 1120px; margin: 0 auto; animation: enter .28s ease; }
@@ -421,6 +424,12 @@
           <button data-phase="results"><span class="nav-number">✓</span><span>Ergebnisse</span></button>
         </nav>
         <div class="side-tools">
+          <p class="tools-label">Stunde unterbrechen</p>
+          <button class="button soft small" id="saveFileBtn">Arbeitsstand sichern</button>
+          <button class="button soft small" id="loadFileBtn">Arbeitsstand laden</button>
+          <input type="file" id="loadFileInput" accept="application/json,.json" hidden>
+          <p class="tools-hint">Sichert die Datei am Stundenende. In der nächsten Stunde ladet ihr sie hier wieder und arbeitet genau dort weiter.</p>
+          <p class="tools-label">Ergebnisse</p>
           <button class="button soft small" id="exportBtn">Ergebnisse herunterladen</button>
           <button class="button danger small" id="resetBtn">Eingaben löschen</button>
         </div>
@@ -989,6 +998,53 @@
       URL.revokeObjectURL(a.href);
     }
 
+    function stateFileName() {
+      const clean = v => String(v || '').trim().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
+      const parts = ['Arbeitsstand', clean(state.answers.class_code), clean(state.answers.student_name)].filter(Boolean);
+      return `${parts.join('_')}_${new Date().toISOString().slice(0, 10)}.json`;
+    }
+
+    function saveStateFile() {
+      const payload = {
+        app: 'clara-neumann-quellenarbeit',
+        version: 2,
+        saved_at: new Date().toISOString(),
+        state: {answers: state.answers, group: state.group, phase: state.phase, sourceIndex: state.sourceIndex, claims: state.claims, gateOpen: state.gateOpen}
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = stateFileName();
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showToast('Arbeitsstand gesichert. Bewahrt die Datei gut auf.');
+    }
+
+    async function loadStateFile(file) {
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        const incoming = data && data.state && typeof data.state === 'object' ? data.state : data;
+        if (!incoming || typeof incoming.answers !== 'object' || incoming.answers === null) {
+          throw new Error('format');
+        }
+        const hasWork = Object.values(state.answers || {}).some(v => String(v || '').trim());
+        if (hasWork && !confirm('Die Eingaben auf diesem Gerät werden durch den geladenen Arbeitsstand ersetzt. Fortfahren?')) return;
+        const restored = {
+          answers: incoming.answers,
+          group: typeof incoming.group === 'string' ? incoming.group : '',
+          phase: typeof incoming.phase === 'string' ? incoming.phase : 'intro',
+          sourceIndex: Number(incoming.sourceIndex) || 0,
+          claims: Array.isArray(incoming.claims) ? incoming.claims : [],
+          gateOpen: Boolean(incoming.gateOpen)
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
+        location.reload();
+      } catch (_) {
+        alert('Diese Datei konnte nicht gelesen werden. Wählt bitte die Datei, die ihr am Ende der letzten Stunde über „Arbeitsstand sichern" heruntergeladen habt.');
+      }
+    }
+
     function getDeviceId() {
       let id = localStorage.getItem(DEVICE_KEY);
       if (!id) {
@@ -1252,6 +1308,9 @@
       document.getElementById('timerReset').addEventListener('click', () => { if (timerHandle) clearInterval(timerHandle); timerHandle = null; timerRemaining = 120; document.getElementById('timerStart').textContent = 'Start'; document.getElementById('timerMessage').textContent = 'Bereit für eure Probe.'; updateTimer(); });
       document.getElementById('closeDialog').addEventListener('click', () => document.getElementById('imageDialog').close());
       document.getElementById('imageDialog').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+      document.getElementById('saveFileBtn').addEventListener('click', saveStateFile);
+      document.getElementById('loadFileBtn').addEventListener('click', () => document.getElementById('loadFileInput').click());
+      document.getElementById('loadFileInput').addEventListener('change', e => { loadStateFile(e.target.files[0]); e.target.value = ''; });
       document.getElementById('exportBtn').addEventListener('click', exportText);
       document.getElementById('exportBtnBottom').addEventListener('click', exportText);
       document.getElementById('printBtn').addEventListener('click', () => { renderResults(); window.print(); });

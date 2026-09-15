@@ -51,6 +51,16 @@ Die Zuordnung läuft über das Feld **Klasse / Kurs** aus Phase 1. Groß- und Kl
 
 Ohne Freigabe kommt niemand weiter – die Phasen 5 bis 7 bleiben in der Seitenleiste gesperrt. Einzige Ausnahme ist der **Notfall-Freigabecode** aus `config.js` (`RELEASE_CODE`): Kann ein iPad die Freigabe mehrfach nicht online prüfen, blendet es ein Codefeld ein. Die Lehrkraft findet den Code in ihrem Bereich unter „Mischgruppen freigeben" und nennt ihn mündlich. Ein leerer `RELEASE_CODE` schaltet diese Möglichkeit ganz ab.
 
+## Über mehrere Stunden arbeiten
+
+Reicht eine Stunde nicht, sichern die Gruppen ihren Stand als Datei und laden ihn in der Folgestunde wieder – auch auf einem anderen iPad.
+
+1. In der Seitenleiste („Schritte") unter **Stunde unterbrechen** auf **Arbeitsstand sichern** klicken. Es entsteht eine Datei wie `Arbeitsstand_E1-Geschichte_Linn_2026-09-15.json`.
+2. In der nächsten Stunde dort **Arbeitsstand laden** wählen und die Datei auswählen.
+3. Die App springt genau zu der Phase zurück, in der aufgehört wurde – samt Quellengruppe, Texten und Einschätzungen.
+
+Gesichert wird der komplette Arbeitsstand, nicht nur die Texte. Sind auf dem Gerät bereits Eingaben vorhanden, wird vor dem Überschreiben nachgefragt. Auf dem iPad landet die Datei in **Dateien → Downloads**; sie kann auch in einen Klassenordner oder Cloud-Ordner gelegt werden.
+
 ## 3. Mit GitHub Pages veröffentlichen
 
 1. Lade alle Dateien dieses Ordners in ein GitHub-Repository hoch.
