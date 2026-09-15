@@ -30,6 +30,7 @@
     }
 
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     html { scroll-behavior: smooth; }
     body {
       margin: 0;
@@ -138,6 +139,19 @@
       font-size: .82rem;
       font-weight: 800;
     }
+    .nav button[disabled] { color: #9a9c92; cursor: not-allowed; }
+    .nav button[disabled]:hover { background: transparent; }
+    .nav button[disabled] .nav-number { border-style: dashed; }
+    .nav-wait { font-size: 1rem; }
+
+    .waiting-card { border-color: #c4ceb2; background: #f4f6ec; }
+    .waiting-status { display: flex; align-items: center; gap: 12px; font-size: 1.12rem; font-weight: 750; }
+    .waiting-status.ready { color: var(--sage-dark); }
+    .waiting-dot { flex: none; width: 14px; height: 14px; border-radius: 50%; background: #c8a227; animation: pulse 1.6s ease-in-out infinite; }
+    .waiting-status.ready .waiting-dot { background: var(--sage); animation: none; }
+    @keyframes pulse { 0%,100% { opacity: .35; transform: scale(.85); } 50% { opacity: 1; transform: scale(1); } }
+    .waiting-card .actions { margin-top: 22px; }
+
     .side-tools { display: grid; gap: 8px; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
 
     main { min-width: 0; padding: clamp(26px, 5vw, 70px); }
@@ -396,6 +410,7 @@
           <button data-phase="context"><span class="nav-number">2</span><span>Hintergrund</span></button>
           <button data-phase="sources"><span class="nav-number">3</span><span>Quellen</span></button>
           <button data-phase="reconstruct"><span class="nav-number">4</span><span>Rekonstruktion</span></button>
+          <button data-phase="waiting"><span class="nav-number nav-wait">◷</span><span>Freigabe</span></button>
           <button data-phase="exchange"><span class="nav-number">5</span><span>Austausch</span></button>
           <button data-phase="revise"><span class="nav-number">6</span><span>Überprüfung</span></button>
           <button data-phase="reflection"><span class="nav-number">7</span><span>Reflexion</span></button>
@@ -418,10 +433,10 @@
 
           <div class="task-card">
             <h3>Deine Arbeitssitzung</h3>
-            <p class="instruction">Tragt einen Namen oder ein vereinbartes Kürzel und eure Klasse ein. Diese Angaben helfen bei der späteren Zuordnung im Lehrerbereich.</p>
+            <p class="instruction">Tragt euren Vornamen oder ein vereinbartes Kürzel und eure Klasse ein – zum Beispiel <strong>Linn</strong> oder das Kürzel <strong>LiSo</strong>. Diese Angaben helfen bei der späteren Zuordnung im Lehrerbereich.</p>
             <div class="session-grid">
               <label>Name oder Kürzel
-                <input type="text" class="essential" data-save="student_name" maxlength="80" autocomplete="name" placeholder="z. B. Mia K. oder Team 3">
+                <input type="text" class="essential" data-save="student_name" maxlength="80" autocomplete="name" placeholder="z. B. Linn oder LiSo">
               </label>
               <label>Klasse / Kurs
                 <input type="text" class="essential" data-save="class_code" maxlength="40" autocomplete="off" placeholder="z. B. E1 Geschichte">
@@ -538,7 +553,35 @@
             </label>
           </div>
 
-          <div class="actions"><button class="button previous" data-next="sources">Zurück</button><button class="button primary next" data-next="exchange">In die Mischgruppen</button></div>
+          <div class="actions"><button class="button previous" data-next="sources">Zurück</button><button class="button primary next" data-next="waiting">Expertengruppe abschließen</button></div>
+        </section>
+
+        <section class="phase" id="phase-waiting">
+          <p class="eyebrow">Zwischenschritt · vor den Mischgruppen</p>
+          <h2>Kurz warten</h2>
+          <p class="lead">Eure Expertengruppe ist mit ihren Quellen fertig. Bevor es weitergeht, müssen auch die anderen Quellengruppen so weit sein.</p>
+
+          <div class="task-card">
+            <h3>Was als Nächstes passiert</h3>
+            <p class="instruction">Sobald alle fertig sind, wird die Klasse <strong>neu eingeteilt</strong>: In jeder neuen Mischgruppe sitzt <strong>genau eine Person aus jeder Quellengruppe A bis E</strong>. Jede und jeder bringt also das Wissen über die eigenen Quellen mit – zusammen liegen in der neuen Gruppe alle fünf Perspektiven auf dem Tisch.</p>
+            <p class="instruction">Haltet eure Ergebnisse aus Phase 4 bereit. Ihr braucht sie gleich, um eure Rekonstruktion vorzustellen.</p>
+          </div>
+
+          <div class="task-card waiting-card">
+            <div class="waiting-status" id="waitingStatus">
+              <span class="waiting-dot" aria-hidden="true"></span>
+              <span id="waitingText">Wir warten auf die Freigabe durch die Lehrkraft …</span>
+            </div>
+            <p class="hint" id="waitingHint">Lasst diese Seite geöffnet. Sobald die Lehrkraft freigibt, erscheint hier automatisch die Schaltfläche zum Weiterarbeiten.</p>
+            <div class="actions">
+              <button class="button previous" data-next="reconstruct">Zurück zu Phase 4</button>
+              <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <button class="button soft small" id="waitingRecheck">Jetzt prüfen</button>
+                <button class="button soft small" id="waitingOverride" hidden>Ohne Freigabe fortfahren</button>
+                <button class="button primary" id="continueExchange" hidden>Weiter zu den Mischgruppen</button>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section class="phase" id="phase-exchange">
@@ -644,7 +687,7 @@
   <script>
     const STORAGE_KEY = 'clara-neumann-quellenarbeit-v2';
     const DEVICE_KEY = 'clara-neumann-device-id';
-    const state = { answers: {}, group: '', phase: 'intro', sourceIndex: 0, claims: [] };
+    const state = { answers: {}, group: '', phase: 'intro', sourceIndex: 0, claims: [], gateOpen: false };
 
     const sources = {
       A: [
@@ -797,10 +840,15 @@
 
     function showPhase(name, push = true) {
       if (name === 'sources' && !state.group) showToast('Wählt zuerst eure Quellengruppe.');
+      if (LOCKED_PHASES.includes(name) && !gateUnlocked()) {
+        showToast('Die Mischgruppen sind noch nicht freigegeben.');
+        name = 'waiting';
+      }
       document.querySelectorAll('.phase').forEach(p => p.classList.toggle('active', p.id === `phase-${name}`));
       document.querySelectorAll('#phaseNav button').forEach(b => b.classList.toggle('active', b.dataset.phase === name));
       state.phase = name;
       if (name === 'results') renderResults();
+      if (name === 'waiting') startGateWatch(); else stopGateWatch();
       if (push) saveState();
       window.scrollTo({top: 0, behavior: 'smooth'});
     }
@@ -1024,6 +1072,129 @@
       updateTimer();
     }
 
+    /* ---------- Freigabe der Mischgruppen ------------------------------ */
+
+    const LOCKED_PHASES = ['exchange', 'revise', 'reflection'];
+    const DEMO_GATE_KEY = 'clara-neumann-demo-gates';
+    const GATE_POLL_MS = 8000;
+    const gateWatch = { timer: null, busy: false, failures: 0 };
+
+    function isLive() {
+      const c = window.APP_CONFIG || {};
+      return Boolean(c.SUPABASE_URL && c.SUPABASE_ANON_KEY && !c.SUPABASE_URL.includes('DEIN-PROJEKT'));
+    }
+
+    function classKey() {
+      return String(state.answers.class_code || '').trim().toLocaleLowerCase('de').slice(0, 40);
+    }
+
+    function gateUnlocked() {
+      return Boolean(state.gateOpen);
+    }
+
+    function unlockGate(silent = false) {
+      if (!state.gateOpen) {
+        state.gateOpen = true;
+        saveState();
+      }
+      applyGate();
+      if (!silent) showToast('Die Mischgruppen sind freigegeben.');
+    }
+
+    function applyGate() {
+      const open = gateUnlocked();
+      document.querySelectorAll('#phaseNav [data-phase]').forEach(b => {
+        if (!LOCKED_PHASES.includes(b.dataset.phase)) return;
+        b.disabled = !open;
+        b.title = open ? '' : 'Erst nach der Freigabe durch die Lehrkraft';
+      });
+      const status = document.getElementById('waitingStatus');
+      const text = document.getElementById('waitingText');
+      const hint = document.getElementById('waitingHint');
+      const go = document.getElementById('continueExchange');
+      const recheck = document.getElementById('waitingRecheck');
+      const override = document.getElementById('waitingOverride');
+      if (!status) return;
+      if (open) {
+        status.classList.add('ready');
+        text.textContent = 'Freigegeben – ihr könnt in die Mischgruppen wechseln.';
+        hint.textContent = 'Setzt euch so zusammen, dass in jeder Gruppe genau eine Person aus jeder Quellengruppe A bis E sitzt.';
+        go.hidden = false;
+        recheck.hidden = true;
+        override.hidden = true;
+      } else {
+        status.classList.remove('ready');
+        go.hidden = true;
+        recheck.hidden = false;
+      }
+    }
+
+    function setWaitingMessage(message, hint) {
+      const text = document.getElementById('waitingText');
+      const hintEl = document.getElementById('waitingHint');
+      if (text && message) text.textContent = message;
+      if (hintEl && hint) hintEl.textContent = hint;
+    }
+
+    async function checkGate(manual = false) {
+      if (gateUnlocked() || gateWatch.busy) return;
+      const key = classKey();
+      if (!key) {
+        setWaitingMessage('Eure Klasse fehlt noch.', 'Tragt auf der Startseite (Phase 1) Klasse oder Kurs ein. Erst dann kann die Freigabe der Lehrkraft zugeordnet werden.');
+        document.getElementById('waitingOverride').hidden = false;
+        return;
+      }
+      if (!isLive()) {
+        let gates = {};
+        try { gates = JSON.parse(localStorage.getItem(DEMO_GATE_KEY) || '{}'); } catch (_) {}
+        const entry = gates[key];
+        if (entry && (entry === true || entry.open)) { unlockGate(); return; }
+        setWaitingMessage('Demomodus: Wir warten auf die Freigabe im Lehrerbereich dieses Geräts.', 'Ohne Supabase funktioniert die Freigabe nur auf diesem Gerät. Ihr könnt hier auch ohne Freigabe fortfahren.');
+        document.getElementById('waitingOverride').hidden = false;
+        return;
+      }
+      gateWatch.busy = true;
+      const recheck = document.getElementById('waitingRecheck');
+      if (manual) recheck.disabled = true;
+      try {
+        const config = window.APP_CONFIG;
+        const base = config.SUPABASE_URL.replace(/\/$/, '');
+        const response = await fetch(`${base}/rest/v1/class_gates?select=exchange_open&class_key=eq.${encodeURIComponent(key)}`, {
+          headers: {apikey: config.SUPABASE_ANON_KEY, Authorization: `Bearer ${config.SUPABASE_ANON_KEY}`},
+          cache: 'no-store'
+        });
+        if (!response.ok) throw new Error(String(response.status));
+        const rows = await response.json();
+        gateWatch.failures = 0;
+        if (Array.isArray(rows) && rows[0] && rows[0].exchange_open) { unlockGate(); return; }
+        setWaitingMessage('Wir warten auf die Freigabe durch die Lehrkraft …', 'Lasst diese Seite geöffnet. Sobald die Lehrkraft freigibt, erscheint hier automatisch die Schaltfläche zum Weiterarbeiten.');
+      } catch (_) {
+        gateWatch.failures += 1;
+        if (gateWatch.failures >= 3) {
+          setWaitingMessage('Die Freigabe lässt sich gerade nicht prüfen.', 'Vermutlich ist dieses iPad offline. Fragt die Lehrkraft – wenn sie freigegeben hat, könnt ihr auch ohne automatische Prüfung fortfahren.');
+          document.getElementById('waitingOverride').hidden = false;
+        } else {
+          setWaitingMessage('Verbindung wird geprüft …', 'Einen Moment bitte.');
+        }
+      } finally {
+        gateWatch.busy = false;
+        if (manual) recheck.disabled = false;
+      }
+    }
+
+    function startGateWatch() {
+      stopGateWatch();
+      applyGate();
+      if (gateUnlocked()) return;
+      checkGate();
+      gateWatch.timer = setInterval(checkGate, GATE_POLL_MS);
+    }
+
+    function stopGateWatch() {
+      if (gateWatch.timer) clearInterval(gateWatch.timer);
+      gateWatch.timer = null;
+    }
+
     function init() {
       loadState();
       bindSavedControls();
@@ -1041,6 +1212,9 @@
       bindSavedControls();
 
       document.getElementById('addClaim').addEventListener('click', () => { state.claims.push({id: crypto.randomUUID()}); renderClaims(); saveState(); });
+      document.getElementById('waitingRecheck').addEventListener('click', () => checkGate(true));
+      document.getElementById('waitingOverride').addEventListener('click', () => { unlockGate(true); showPhase('exchange'); });
+      document.getElementById('continueExchange').addEventListener('click', () => showPhase('exchange'));
       document.getElementById('timerStart').addEventListener('click', toggleTimer);
       document.getElementById('timerReset').addEventListener('click', () => { if (timerHandle) clearInterval(timerHandle); timerHandle = null; timerRemaining = 120; document.getElementById('timerStart').textContent = 'Start'; document.getElementById('timerMessage').textContent = 'Bereit für eure Probe.'; updateTimer(); });
       document.getElementById('closeDialog').addEventListener('click', () => document.getElementById('imageDialog').close());
@@ -1053,6 +1227,7 @@
         if (!confirm('Wirklich alle Eingaben auf diesem Gerät löschen?')) return;
         localStorage.removeItem(STORAGE_KEY); location.reload();
       });
+      applyGate();
       showPhase(state.phase || 'intro', false);
       updateProgress();
       updateTimer();

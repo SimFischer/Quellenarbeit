@@ -36,6 +36,15 @@
     .status { min-height:24px; margin-top:12px; color:var(--sage); font-weight:700; }
     .demo { margin-bottom:18px; padding:13px 15px; border-radius:11px; color:#3b5159; background:var(--blue); }
     .toolbar { display:grid; grid-template-columns:1.4fr repeat(2,minmax(140px,.65fr)) auto; gap:10px; align-items:end; margin-bottom:18px; }
+    .gate-panel { margin-bottom:18px; }
+    .gate-panel h3 { margin:0 0 8px; font-size:1.3rem; }
+    .gate-panel .lead { margin-bottom:18px; }
+    .gate-controls { display:grid; grid-template-columns:minmax(0,1.6fr) auto auto; gap:10px; align-items:end; }
+    .gate-list { display:flex; flex-wrap:wrap; gap:9px; margin-top:14px; }
+    .gate-chip { display:inline-flex; align-items:center; gap:8px; padding:7px 13px; border:1px solid var(--line); border-radius:999px; background:#faf9f3; font-size:.9rem; font-weight:700; }
+    .gate-chip i { width:10px; height:10px; border-radius:50%; background:#c8a227; }
+    .gate-chip.open i { background:var(--sage); }
+    @media(max-width:640px){ .gate-controls{grid-template-columns:1fr} }
     .stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:20px 0; }
     .stat { padding:16px; border:1px solid var(--line); border-radius:13px; background:#faf9f3; }
     .stat strong { display:block; font:700 2rem/1 Georgia,serif; }
@@ -89,6 +98,18 @@
         <button id="logoutBtn" class="button soft">Abmelden</button>
       </div>
       <div id="dashboardDemo" class="demo hidden"><strong>Demomodus:</strong> Diese Daten liegen nur in diesem Browser. Für Abgaben von Schüler-iPads muss Supabase eingerichtet sein.</div>
+
+      <div class="panel gate-panel">
+        <h3>Mischgruppen freigeben</h3>
+        <p class="lead">Nach Phase 4 landen die Schülerinnen und Schüler auf einer Warteseite. Erst mit dieser Freigabe können sie in die Mischgruppen wechseln – dort sitzt dann genau eine Person aus jeder Quellengruppe A bis E.</p>
+        <div class="gate-controls">
+          <label>Klasse / Kurs<input id="gateClass" type="text" list="gateClassList" placeholder="z. B. E1 Geschichte" autocomplete="off"><datalist id="gateClassList"></datalist></label>
+          <button id="gateOpenBtn" class="button primary">Freigeben</button>
+          <button id="gateCloseBtn" class="button soft">Sperren</button>
+        </div>
+        <div class="status" id="gateStatus" role="status"></div>
+        <div id="gateList" class="gate-list"></div>
+      </div>
       <div class="stats">
         <div class="stat"><strong id="statTotal">0</strong><span>Abgaben</span></div>
         <div class="stat"><strong id="statNames">0</strong><span>Schüler / Teams</span></div>

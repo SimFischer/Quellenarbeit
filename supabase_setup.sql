@@ -83,6 +83,45 @@ grant insert on table public.submissions to anon, authenticated;
 grant select, update on table public.submissions to authenticated;
 grant select on table public.teacher_profiles to authenticated;
 
+-- ---------------------------------------------------------------------
+-- Freigabe der Mischgruppen (Zwischenschritt nach Phase 4)
+-- ---------------------------------------------------------------------
+
+create table if not exists public.class_gates (
+  class_key text primary key check (char_length(class_key) between 1 and 40),
+  class_code text not null check (char_length(class_code) between 1 and 40),
+  exchange_open boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.class_gates enable row level security;
+
+-- Schüler-iPads dürfen nur nachsehen, ob ihre Klasse freigegeben ist.
+drop policy if exists "Everyone may read gates" on public.class_gates;
+create policy "Everyone may read gates"
+on public.class_gates
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "Teachers may create gates" on public.class_gates;
+create policy "Teachers may create gates"
+on public.class_gates
+for insert
+to authenticated
+with check (public.is_teacher());
+
+drop policy if exists "Teachers may update gates" on public.class_gates;
+create policy "Teachers may update gates"
+on public.class_gates
+for update
+to authenticated
+using (public.is_teacher())
+with check (public.is_teacher());
+
+grant select on table public.class_gates to anon, authenticated;
+grant insert, update on table public.class_gates to authenticated;
+
 -- NACH dem Anlegen der Lehrkraft ersetzen und einmal ausführen:
 -- insert into public.teacher_profiles (user_id, display_name)
 -- values ('HIER-DIE-USER-UUID-EINSETZEN', 'Simon Fischer');
