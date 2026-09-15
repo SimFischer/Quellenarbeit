@@ -22,6 +22,75 @@ function showDashboard() {
   $('#dashboardView').classList.remove('hidden');
   $('#dashboardDemo').classList.toggle('hidden', !demoMode);
   loadSubmissions();
+  loadGates();
+}
+
+/* ---------- Freigabe der Mischgruppen -------------------------------- */
+
+const DEMO_GATE_KEY = 'clara-neumann-demo-gates';
+let gates = [];
+
+const classKeyOf = value => String(value || '').trim().toLocaleLowerCase('de').slice(0, 40);
+
+function readDemoGates() {
+  try { return JSON.parse(localStorage.getItem(DEMO_GATE_KEY) || '{}'); } catch (_) { return {}; }
+}
+
+async function loadGates() {
+  try {
+    if (demoMode) {
+      const stored = readDemoGates();
+      gates = Object.entries(stored).map(([key, entry]) => ({class_key: key, class_code: (entry && entry.class_code) || key, exchange_open: Boolean(entry && entry.open !== undefined ? entry.open : entry)}));
+    } else {
+      gates = await api('/rest/v1/class_gates?select=*&order=class_code.asc');
+    }
+  } catch (error) {
+    $('#gateStatus').textContent = error.message;
+    gates = [];
+  }
+  renderGates();
+}
+
+function renderGates() {
+  const known = [...new Set([
+    ...submissions.map(s => s.class_code).filter(Boolean),
+    ...gates.map(g => g.class_code).filter(Boolean)
+  ])].sort((a, b) => a.localeCompare(b, 'de'));
+  $('#gateClassList').innerHTML = known.map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
+  $('#gateList').innerHTML = gates.length
+    ? gates.map(g => `<span class="gate-chip ${g.exchange_open ? 'open' : ''}"><i></i>${escapeHtml(g.class_code)} · ${g.exchange_open ? 'freigegeben' : 'gesperrt'}</span>`).join('')
+    : '<span class="gate-chip"><i></i>Noch keine Klasse freigeschaltet</span>';
+}
+
+async function setGate(open) {
+  const classCode = $('#gateClass').value.trim();
+  const key = classKeyOf(classCode);
+  const status = $('#gateStatus');
+  if (!key) { status.textContent = 'Bitte zuerst Klasse oder Kurs eintragen.'; return; }
+  $('#gateOpenBtn').disabled = true;
+  $('#gateCloseBtn').disabled = true;
+  try {
+    if (demoMode) {
+      const stored = readDemoGates();
+      stored[key] = {open, class_code: classCode};
+      localStorage.setItem(DEMO_GATE_KEY, JSON.stringify(stored));
+    } else {
+      await api('/rest/v1/class_gates', {
+        method: 'POST',
+        headers: {Prefer: 'resolution=merge-duplicates,return=minimal'},
+        body: JSON.stringify({class_key: key, class_code: classCode, exchange_open: open, updated_at: new Date().toISOString()})
+      });
+    }
+    status.textContent = open
+      ? `„${classCode}“ ist freigegeben. Die iPads wechseln innerhalb weniger Sekunden weiter.`
+      : `„${classCode}“ ist wieder gesperrt. Bereits weitergegangene Geräte bleiben in den Mischgruppen.`;
+    await loadGates();
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    $('#gateOpenBtn').disabled = false;
+    $('#gateCloseBtn').disabled = false;
+  }
 }
 
 async function signIn(event) {
@@ -67,6 +136,7 @@ async function loadSubmissions() {
     else submissions = await api('/rest/v1/submissions?select=*&order=submitted_at.desc&limit=1000');
     fillClassFilter();
     render();
+    renderGates();
   } catch (error) {
     alert(error.message);
     if (!demoMode && !accessToken) location.reload();
@@ -188,6 +258,8 @@ if(!liveMode){
 $('#logoutBtn').addEventListener('click',logout);
 $('#refreshBtn').addEventListener('click',loadSubmissions);
 $('#csvBtn').addEventListener('click',exportCsv);
+$('#gateOpenBtn').addEventListener('click',()=>setGate(true));
+$('#gateCloseBtn').addEventListener('click',()=>setGate(false));
 $('#searchInput').addEventListener('input',render);
 $('#classFilter').addEventListener('change',render);
 $('#groupFilter').addEventListener('change',render);
