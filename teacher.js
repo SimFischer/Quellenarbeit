@@ -252,6 +252,31 @@ function exportCsv() {
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Clara_Neumann_Abgaben_${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href);
 }
 
+
+async function restoreTeacherSession() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const token = params.get('access_token');
+  const authError = params.get('error_description') || params.get('error');
+  if (!token && !authError) { if (accessToken) showDashboard(); return; }
+  history.replaceState(null, '', location.pathname + location.search);
+  sessionStorage.removeItem('clara-teacher-token');
+  accessToken = '';
+  const status = $('#loginStatus');
+  if (authError) { status.textContent = 'Der Anmeldelink ist ungültig oder abgelaufen. Bitte einen neuen Magic Link anfordern.'; return; }
+  if (params.get('type') === 'recovery') { status.textContent = 'Bitte einen Magic Link zur Anmeldung anfordern. Dieser Link ist zum Zurücksetzen des Passworts bestimmt.'; return; }
+  status.textContent = 'Anmeldelink wird geprüft …';
+  try {
+    const response = await fetch(baseUrl + '/auth/v1/user', {headers: {apikey: config.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + token}});
+    if (!response.ok) throw new Error('Der Anmeldelink ist ungültig oder abgelaufen. Bitte einen neuen Magic Link anfordern.');
+    const user = await response.json();
+    if (!user.id) throw new Error('Die Anmeldung konnte nicht bestätigt werden.');
+    accessToken = token;
+    sessionStorage.setItem('clara-teacher-token', accessToken);
+    status.textContent = '';
+    showDashboard();
+  } catch (error) { status.textContent = error.message; }
+}
+
 function logout(){sessionStorage.removeItem('clara-teacher-token');accessToken='';location.reload();}
 
 if(!liveMode){
@@ -261,7 +286,7 @@ if(!liveMode){
   $('#demoLogin').addEventListener('click',()=>{demoMode=true;showDashboard();});
 }else{
   $('#loginForm').addEventListener('submit',signIn);
-  if(accessToken)showDashboard();
+  restoreTeacherSession();
 }
 $('#logoutBtn').addEventListener('click',logout);
 $('#refreshBtn').addEventListener('click',loadSubmissions);
