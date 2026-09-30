@@ -119,6 +119,15 @@ async function main() {
   await a.SchoolAPI.login('Gymnasium','test-only');assert.equal(loginBody.email,'gymnasium@kronwerk.de');
   assert.equal(a.sessionStorage.getItem('clara-teacher-session-v3').includes('test-only'),false);
   await assert.rejects(a.SchoolAPI.login('bad@email','test-only'));authDom.window.close();
+  for (const file of ['index.html', 'lehrer.html']) {
+    const markup = fs.readFileSync(root+file, 'utf8');
+    const scripts = [...markup.matchAll(/<script src="([^"]+)"/g)].map(match => match[1]);
+    assert.ok(scripts.length >= 2);
+    for (const src of scripts) {
+      assert.match(src, /\?v=3\.0\.2$/);
+      assert.ok(fs.readFileSync(root+'sw.js','utf8').includes(src));
+    }
+  }
   console.log('PASS: teacher dashboard, printable roster, escaped course names, code replacement, username authentication and password not stored');
 }
 main().catch(e=>{console.error(e);process.exit(1)});

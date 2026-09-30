@@ -1,11 +1,11 @@
-const CACHE_NAME = 'clara-neumann-v11';
+const CACHE_NAME = 'clara-neumann-v12';
 const CORE_FILES = [
   './',
   './index.html',
   './lehrer.html',
-  './config.js',
-  './teacher.js',
-  './api.js',
+  './config.js?v=3.0.2',
+  './teacher.js?v=3.0.2',
+  './api.js?v=3.0.2',
   './manifest.webmanifest',
   './icon.svg',
   './icon-180.png',
@@ -33,6 +33,7 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || requestUrl.origin !== self.location.origin) return;
 
   const store = response => {
+    if (!response.ok) throw new Error('Resource unavailable');
     const copy = response.clone();
     caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
     return response;
@@ -40,7 +41,15 @@ self.addEventListener('fetch', event => {
 
   if (event.request.mode === 'navigate' || ALWAYS_FRESH.test(requestUrl.pathname)) {
     event.respondWith(
-      fetch(event.request).then(store).catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html')))
+      fetch(event.request, {cache: 'reload'}).then(store).catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        if (event.request.mode === 'navigate') {
+          const page = requestUrl.pathname.endsWith('/lehrer.html') ? './lehrer.html' : './index.html';
+          return await caches.match(page) || Response.error();
+        }
+        return Response.error();
+      })
     );
     return;
   }
