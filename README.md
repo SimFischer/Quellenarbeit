@@ -13,6 +13,8 @@ Lehrkräfte melden sich mit Benutzername und Passwort an, legen eigene Kurse an 
 
 ## Lehrerzugang anlegen (Schuladministration)
 
+Der vorhandene Schulzugang `gymnasium@kronwerk.de` ist in `config.js` dem Benutzernamen **gymnasium** zugeordnet. Er verwendet sein bereits gesetztes Passwort. Solche optionalen Zuordnungen sind öffentlich im Quellcode sichtbar; neue Zugänge sollten wie unten beschrieben interne Kennungen verwenden.
+
 Supabase Auth prüft und hasht das Passwort. Intern benötigt der Dienst eine E-Mail-förmige Kennung; sie ist **kein Postfach** und wird nie für Anmeldelinks verwendet. Die App fragt ausschließlich nach Benutzername und Passwort.
 
 1. Eindeutigen Benutzernamen festlegen, z. B. `sfischer` (3–40 Zeichen: Kleinbuchstaben a–z, Ziffern, Punkt, Unterstrich oder Bindestrich; erstes Zeichen Buchstabe/Ziffer).

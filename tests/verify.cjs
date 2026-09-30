@@ -115,6 +115,8 @@ async function main() {
   a.fetch=async(url,opts)=>{loginBody=JSON.parse(opts.body);return {ok:true,json:async()=>({access_token:'token',refresh_token:'refresh',expires_at:Math.floor(Date.now()/1000)+3600})}};
   a.eval(fs.readFileSync(root+'api.js','utf8'));
   await a.SchoolAPI.login('SFischer','test-only');assert.equal(loginBody.email,'sfischer@lehrer.invalid');
+  a.APP_CONFIG.TEACHER_LOGIN_ALIASES = {gymnasium:'gymnasium@kronwerk.de'};
+  await a.SchoolAPI.login('Gymnasium','test-only');assert.equal(loginBody.email,'gymnasium@kronwerk.de');
   assert.equal(a.sessionStorage.getItem('clara-teacher-session-v3').includes('test-only'),false);
   await assert.rejects(a.SchoolAPI.login('bad@email','test-only'));authDom.window.close();
   console.log('PASS: teacher dashboard, printable roster, escaped course names, code replacement, username authentication and password not stored');

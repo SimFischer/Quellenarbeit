@@ -33,7 +33,9 @@ window.SchoolAPI = (() => {
     async login(username, password) {
       username = username.trim().toLowerCase();
       if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(username)) throw new Error('Benutzername: 3–40 Zeichen, nur a–z, Ziffern, Punkt, Unterstrich oder Bindestrich.');
-      try { save(await request('/auth/v1/token?grant_type=password', {email: `${username}@lehrer.invalid`, password})); }
+      const aliases = config.TEACHER_LOGIN_ALIASES || {};
+      const email = Object.prototype.hasOwnProperty.call(aliases, username) ? aliases[username] : `${username}@lehrer.invalid`;
+      try { save(await request('/auth/v1/token?grant_type=password', {email, password})); }
       catch (error) { throw new Error(error.status === 400 ? 'Benutzername oder Passwort stimmt nicht.' : error.message); }
     },
     async logout() { try { if (session) await request('/auth/v1/logout', undefined, await token()); } finally { save(null); } },
