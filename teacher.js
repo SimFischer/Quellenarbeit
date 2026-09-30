@@ -1,191 +1,89 @@
-const config = window.APP_CONFIG || {};
-const liveMode = Boolean(config.SUPABASE_URL && config.SUPABASE_ANON_KEY && !config.SUPABASE_URL.includes('DEIN-PROJEKT'));
-const baseUrl = (config.SUPABASE_URL || '').replace(/\/$/, '');
-let accessToken = sessionStorage.getItem('clara-teacher-token') || '';
-let submissions = [];
-let demoMode = false;
-const reflectionPrompts = [
-  'Eine Quelle sollte nie einfach übernommen werden, weil …',
-  'Beim Vergleich mehrerer Quellen ist besonders wichtig, …',
-  'Widersprechen sich Quellen, muss man …',
-  'Eine historische Aussage ist besonders belastbar, wenn …',
-  'Auch nach sorgfältiger Quellenarbeit können Fragen offenbleiben, weil …',
-  'Das Vetorecht der Quellen bedeutet, dass …'
-];
-
 const $ = selector => document.querySelector(selector);
 const escapeHtml = (value = '') => String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const formatDate = iso => iso ? new Intl.DateTimeFormat('de-DE',{dateStyle:'short',timeStyle:'short'}).format(new Date(iso)) : '–';
+const reflectionPrompts = ['Eine Quelle sollte nie einfach übernommen werden, weil …','Beim Vergleich mehrerer Quellen ist besonders wichtig, …','Widersprechen sich Quellen, muss man …','Eine historische Aussage ist besonders belastbar, wenn …','Auch nach sorgfältiger Quellenarbeit können Fragen offenbleiben, weil …','Das Vetorecht der Quellen bedeutet, dass …'];
+let courses = [], submissions = [], students = [], activeCourse = '';
+const api = (path, body, method) => SchoolAPI.teacher(path, body, method);
+const rpc = (name, body) => api('/rest/v1/rpc/' + name, body);
 
-function showDashboard() {
+async function readAll(path) {
+  const rows = [];
+  for (let offset = 0; ; offset += 500) {
+    const page = await api(path + `&limit=500&offset=${offset}`, undefined, 'GET');
+    rows.push(...page);
+    if (page.length < 500) return rows;
+  }
+}
+async function showDashboard() {
+  const profile = await api('/rest/v1/teacher_profiles?select=user_id', undefined, 'GET');
+  if (!profile.length) { await SchoolAPI.logout(); throw new Error('Dieser Zugang ist noch nicht als Lehrkraft freigeschaltet. Bitte die Schuladministration fragen.'); }
   $('#loginView').classList.add('hidden');
   $('#dashboardView').classList.remove('hidden');
-  $('#dashboardDemo').classList.toggle('hidden', !demoMode);
-  loadSubmissions();
-  loadGates();
+  await refresh();
 }
-
-/* ---------- Freigabe der Mischgruppen -------------------------------- */
-
-const DEMO_GATE_KEY = 'clara-neumann-demo-gates';
-let gates = [];
-
-const classKeyOf = value => String(value || '').trim().toLocaleLowerCase('de').slice(0, 40);
-
-function readDemoGates() {
-  try { return JSON.parse(localStorage.getItem(DEMO_GATE_KEY) || '{}'); } catch (_) { return {}; }
-}
-
-async function loadGates() {
-  try {
-    if (demoMode) {
-      const stored = readDemoGates();
-      gates = Object.entries(stored).map(([key, entry]) => ({class_key: key, class_code: (entry && entry.class_code) || key, exchange_open: Boolean(entry && entry.open !== undefined ? entry.open : entry)}));
-    } else {
-      gates = await api('/rest/v1/class_gates?select=*&order=class_code.asc');
-    }
-  } catch (error) {
-    $('#gateStatus').textContent = error.message;
-    gates = [];
-  }
-  renderGates();
-  renderGateCode();
-}
-
-function renderGateCode() {
-  const code = String(config.RELEASE_CODE || '').trim();
-  $('#gateCode').textContent = code
-    ? `Notfall-Freigabecode: „${code}“ – nur nennen, wenn ein iPad offline ist und die Freigabe nicht selbst prüfen kann.`
-    : '';
-}
-
-function renderGates() {
-  const known = [...new Set([
-    ...submissions.map(s => s.class_code).filter(Boolean),
-    ...gates.map(g => g.class_code).filter(Boolean)
-  ])].sort((a, b) => a.localeCompare(b, 'de'));
-  $('#gateClassList').innerHTML = known.map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
-  $('#gateList').innerHTML = gates.length
-    ? gates.map(g => `<span class="gate-chip ${g.exchange_open ? 'open' : ''}"><i></i>${escapeHtml(g.class_code)} · ${g.exchange_open ? 'freigegeben' : 'gesperrt'}</span>`).join('')
-    : '<span class="gate-chip"><i></i>Noch keine Klasse freigeschaltet</span>';
-}
-
-async function setGate(open) {
-  const classCode = $('#gateClass').value.trim();
-  const key = classKeyOf(classCode);
-  const status = $('#gateStatus');
-  if (!key) { status.textContent = 'Bitte zuerst Klasse oder Kurs eintragen.'; return; }
-  $('#gateOpenBtn').disabled = true;
-  $('#gateCloseBtn').disabled = true;
-  try {
-    if (demoMode) {
-      const stored = readDemoGates();
-      stored[key] = {open, class_code: classCode};
-      localStorage.setItem(DEMO_GATE_KEY, JSON.stringify(stored));
-    } else {
-      await api('/rest/v1/class_gates', {
-        method: 'POST',
-        headers: {Prefer: 'resolution=merge-duplicates,return=minimal'},
-        body: JSON.stringify({class_key: key, class_code: classCode, exchange_open: open, updated_at: new Date().toISOString()})
-      });
-    }
-    status.textContent = open
-      ? `„${classCode}“ ist freigegeben. Die iPads wechseln innerhalb weniger Sekunden weiter.`
-      : `„${classCode}“ ist wieder gesperrt. Geräte, die schon weiter sind, arbeiten zunächst weiter und landen beim nächsten Neuladen wieder auf der Warteseite.`;
-    await loadGates();
-  } catch (error) {
-    status.textContent = error.message;
-  } finally {
-    $('#gateOpenBtn').disabled = false;
-    $('#gateCloseBtn').disabled = false;
-  }
-}
-
-async function signIn(event) {
-  event.preventDefault();
-  const status = $('#loginStatus');
-  status.textContent = 'Anmeldung läuft …';
-  try {
-    const response = await fetch(`${baseUrl}/auth/v1/token?grant_type=password`, {
-      method:'POST',
-      headers:{apikey:config.SUPABASE_ANON_KEY,'Content-Type':'application/json'},
-      body:JSON.stringify({email:$('#email').value.trim(),password:$('#password').value})
-    });
-    const data = await response.json();
-    if (!response.ok || !data.access_token) throw new Error(data.error_description || data.msg || 'Anmeldung fehlgeschlagen.');
-    accessToken = data.access_token;
-    sessionStorage.setItem('clara-teacher-token', accessToken);
-    status.textContent = '';
-    showDashboard();
-  } catch (error) {
-    status.textContent = error.message;
-  }
-}
-
-async function api(path, options = {}) {
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...options,
-    headers:{apikey:config.SUPABASE_ANON_KEY,Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json',...(options.headers||{})}
-  });
-  if (response.status === 401) {
-    sessionStorage.removeItem('clara-teacher-token');
-    accessToken = '';
-    throw new Error('Die Sitzung ist abgelaufen. Bitte erneut anmelden.');
-  }
-  if (!response.ok) throw new Error(`Daten konnten nicht geladen werden (${response.status}).`);
-  if (response.status === 204) return null;
-  return response.json();
-}
-
-async function loadSubmissions() {
+async function refresh() {
   $('#refreshBtn').disabled = true;
   try {
-    if (demoMode) submissions = JSON.parse(localStorage.getItem('clara-neumann-demo-submissions') || '[]');
-    else submissions = await api('/rest/v1/submissions?select=*&order=submitted_at.desc&limit=1000');
-    fillClassFilter();
-    render();
-    renderGates();
-  } catch (error) {
-    alert(error.message);
-    if (!demoMode && !accessToken) location.reload();
-  } finally {
-    $('#refreshBtn').disabled = false;
-  }
+    [courses, students, submissions] = await Promise.all([
+      readAll('/rest/v1/courses?select=*&order=created_at.asc,id.asc'),
+      readAll('/rest/v1/course_students?select=*&order=course_id.asc,seat.asc'),
+      readAll('/rest/v1/course_submissions?select=*&order=submitted_at.desc,id.asc')
+    ]);
+    const studentMap = new Map(students.map(s => [s.id, s]));
+    const courseMap = new Map(courses.map(c => [c.id, c]));
+    submissions = submissions.map(s => {
+      const student = studentMap.get(s.student_id), course = courseMap.get(student?.course_id);
+      return {...s, course_id: course?.id, display_name: `Platz ${student?.seat || '?'}`, class_code: course?.name || 'Unbekannter Kurs'};
+    });
+    const selected = $('#classFilter').value;
+    $('#classFilter').innerHTML = '<option value="">Alle Kurse</option>' + courses.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+    $('#classFilter').value = courses.some(c => c.id === selected) ? selected : '';
+    renderCourses(); render();
+  } catch (error) { $('#courseStatus').textContent = error.message; }
+  finally { $('#refreshBtn').disabled = false; }
 }
-
-function fillClassFilter() {
-  const current = $('#classFilter').value;
-  const classes = [...new Set(submissions.map(s => s.class_code).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'de'));
-  $('#classFilter').innerHTML = '<option value="">Alle Klassen</option>' + classes.map(c=>`<option ${c===current?'selected':''}>${escapeHtml(c)}</option>`).join('');
-}
-
-function filtered() {
-  const search = $('#searchInput').value.trim().toLocaleLowerCase('de');
-  const classCode = $('#classFilter').value;
-  const group = $('#groupFilter').value;
-  return submissions.filter(s => {
-    const haystack = `${s.display_name||''} ${s.class_code||''} ${JSON.stringify(s.answers||{})}`.toLocaleLowerCase('de');
-    return (!search || haystack.includes(search)) && (!classCode || s.class_code===classCode) && (!group || s.group_code===group);
+function renderCourses() {
+  $('#courseList').innerHTML = courses.length ? courses.map(c => `<article class="course-card"><div><h4>${escapeHtml(c.name)}</h4><span>${students.filter(s => s.course_id === c.id).length} Schülerplätze · Mischgruppen ${c.exchange_open ? 'freigegeben' : 'gesperrt'}</span></div><div class="course-actions"><button class="button soft" data-codes="${c.id}">Codeliste</button><button class="button ${c.exchange_open ? 'soft' : 'primary'}" data-gate="${c.id}">${c.exchange_open ? 'Sperren' : 'Mischgruppen freigeben'}</button><button class="button soft" data-filter="${c.id}">Abgaben</button></div></article>`).join('') : '<p>Noch kein Kurs angelegt.</p>';
+  document.querySelectorAll('[data-codes]').forEach(b => b.onclick = () => showCodes(b.dataset.codes));
+  document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => { $('#classFilter').value = b.dataset.filter; render(); });
+  document.querySelectorAll('[data-gate]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try {
+      const course = courses.find(c => c.id === b.dataset.gate);
+      await api(`/rest/v1/courses?id=eq.${course.id}`, {exchange_open: !course.exchange_open}, 'PATCH');
+      $('#courseStatus').textContent = 'Freigabe aktualisiert. Verbundene iPads prüfen alle acht Sekunden.';
+      await refresh();
+    } catch (error) { $('#courseStatus').textContent = error.message; b.disabled = false; }
   });
 }
-
+function showCodes(courseId) {
+  activeCourse = courseId;
+  $('#codesTitle').textContent = courses.find(c => c.id === courseId)?.name + ' · persönliche Zugangscodes';
+  $('#codesBody').innerHTML = `<table><thead><tr><th>Platz</th><th>Zugangscode</th><th>Name (handschriftlich)</th><th class="replace-cell"></th></tr></thead><tbody>${students.filter(s => s.course_id === courseId).map(s => `<tr><td>${s.seat}</td><td><code>${SchoolAPI.formatCode(s.access_code)}</code></td><td class="name-space"></td><td class="replace-cell"><button class="icon-button" data-replace="${s.id}">Code ersetzen</button></td></tr>`).join('')}</tbody></table>`;
+  document.querySelectorAll('[data-replace]').forEach(b => b.onclick = async () => {
+    if (!confirm('Den bisherigen Zugangscode ungültig machen? Der Schülerplatz und seine Abgabe bleiben erhalten. Danach den neuen Code aushändigen.')) return;
+    b.disabled = true;
+    try {
+      const newCode = await rpc('replace_student_code', {p_student: b.dataset.replace});
+      students.find(s => s.id === b.dataset.replace).access_code = newCode;
+      showCodes(activeCourse);
+    } catch (error) { alert(error.message); b.disabled = false; }
+  });
+  if (!$('#codesDialog').open) $('#codesDialog').showModal();
+}
+function filtered() {
+  const search = $('#searchInput').value.trim().toLocaleLowerCase('de');
+  return submissions.filter(s => (!$('#classFilter').value || s.course_id === $('#classFilter').value) && (!$('#groupFilter').value || s.group_code === $('#groupFilter').value) && (!search || `${s.display_name} ${s.class_code} ${JSON.stringify(s.answers)}`.toLocaleLowerCase('de').includes(search)));
+}
 function render() {
   const rows = filtered();
   $('#statTotal').textContent = submissions.length;
-  $('#statNames').textContent = new Set(submissions.map(s=>`${s.class_code}|${s.display_name}`)).size;
-  $('#statReviewed').textContent = submissions.filter(s=>s.reviewed).length;
-  $('#statClasses').textContent = new Set(submissions.map(s=>s.class_code).filter(Boolean)).size;
-  $('#submissionRows').innerHTML = rows.map(s => `<tr>
-    <td>${formatDate(s.submitted_at)}</td>
-    <td><strong>${escapeHtml(s.display_name||'–')}</strong></td>
-    <td>${escapeHtml(s.class_code||'–')}</td>
-    <td><span class="badge">${escapeHtml(s.group_code||'–')}</span></td>
-    <td>${Number(s.answers?.completion_percent||0)} %</td>
-    <td><span class="badge ${s.reviewed?'':'open'}">${s.reviewed?'gesehen':'neu'}</span></td>
-    <td><div class="row-actions"><button class="icon-button" data-open="${escapeHtml(s.id)}" aria-label="Abgabe öffnen">Ansehen</button></div></td>
-  </tr>`).join('');
+  $('#statNames').textContent = students.length;
+  $('#statReviewed').textContent = submissions.filter(s => s.reviewed).length;
+  $('#statClasses').textContent = courses.length;
+  $('#submissionRows').innerHTML = rows.map(s => `<tr><td>${formatDate(s.submitted_at)}</td><td>${escapeHtml(s.display_name)}</td><td>${escapeHtml(s.class_code)}</td><td>${escapeHtml(s.group_code)}</td><td>${Number(s.answers?.completion_percent || 0)} %</td><td>${s.reviewed ? 'gesehen' : 'neu'}</td><td><button class="icon-button" data-open="${s.id}">Ansehen</button></td></tr>`).join('');
   $('#emptyState').classList.toggle('hidden', rows.length > 0);
-  document.querySelectorAll('[data-open]').forEach(button => button.addEventListener('click',()=>openDetail(button.dataset.open)));
+  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => openDetail(b.dataset.open));
 }
 
 function answer(label, value) {
@@ -228,74 +126,53 @@ async function openDetail(id) {
   $('#reviewBtn').addEventListener('click',()=>toggleReviewed(s));
 }
 
+
 async function toggleReviewed(submission) {
-  const reviewed=!submission.reviewed;
   try {
-    if(demoMode){
-      submission.reviewed=reviewed;
-      localStorage.setItem('clara-neumann-demo-submissions',JSON.stringify(submissions));
-    } else {
-      await api(`/rest/v1/submissions?id=eq.${encodeURIComponent(submission.id)}`,{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({reviewed})});
-      submission.reviewed=reviewed;
-    }
+    await api(`/rest/v1/course_submissions?id=eq.${submission.id}`, {reviewed: !submission.reviewed}, 'PATCH');
+    submission.reviewed = !submission.reviewed;
     $('#detailDialog').close(); render();
-  } catch(error){ alert(error.message); }
+  } catch (error) { alert(error.message); }
 }
-
 function exportCsv() {
-  const rows=filtered();
-  const headers=['Abgabe','Name oder Kürzel','Klasse','Gruppe','Fortschritt','Gesehen','Erste Rekonstruktion','Finale Rekonstruktion','Offene Fragen','Reflexion'];
-  const values=rows.map(s=>[s.submitted_at,s.display_name,s.class_code,s.group_code,s.answers?.completion_percent||0,s.reviewed?'ja':'nein',s.answers?.erste_rekonstruktion||'',s.answers?.finale_rekonstruktion||'',s.answers?.offene_fragen_final||'',s.answers?.reflexion_antwort||'']);
-  const quote=v=>`"${String(v??'').replace(/"/g,'""')}"`;
-  const csv='\ufeff'+[headers,...values].map(row=>row.map(quote).join(';')).join('\r\n');
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Clara_Neumann_Abgaben_${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href);
+  const headers = ['Abgabe','Schülerplatz','Kurs','Gruppe','Gesehen','Antworten'];
+  const rows = filtered().map(s => [s.submitted_at,s.display_name,s.class_code,s.group_code,s.reviewed?'ja':'nein',JSON.stringify(s.answers)]);
+  const quote = value => {
+    let text = String(value ?? '');
+    if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
+    return '"' + text.replace(/"/g,'""') + '"';
+  };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\ufeff'+[headers,...rows].map(row => row.map(quote).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}));
+  a.download = `Abgaben_${new Date().toISOString().slice(0,10)}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href),1000);
 }
-
-
-async function restoreTeacherSession() {
-  const params = new URLSearchParams(location.hash.slice(1));
-  const token = params.get('access_token');
-  const authError = params.get('error_description') || params.get('error');
-  if (!token && !authError) { if (accessToken) showDashboard(); return; }
-  history.replaceState(null, '', location.pathname + location.search);
-  sessionStorage.removeItem('clara-teacher-token');
-  accessToken = '';
-  const status = $('#loginStatus');
-  if (authError) { status.textContent = 'Der Anmeldelink ist ungültig oder abgelaufen. Bitte einen neuen Magic Link anfordern.'; return; }
-  if (params.get('type') === 'recovery') { status.textContent = 'Bitte einen Magic Link zur Anmeldung anfordern. Dieser Link ist zum Zurücksetzen des Passworts bestimmt.'; return; }
-  status.textContent = 'Anmeldelink wird geprüft …';
+$('#loginForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = event.submitter; button.disabled = true;
+  $('#loginStatus').textContent = 'Anmeldung läuft …';
+  try { await SchoolAPI.login($('#username').value,$('#password').value); $('#password').value = ''; await showDashboard(); $('#loginStatus').textContent = ''; }
+  catch(error) { $('#loginStatus').textContent = error.message; }
+  finally { button.disabled = false; }
+});
+$('#courseForm').addEventListener('submit', async event => {
+  event.preventDefault(); event.submitter.disabled = true;
   try {
-    const response = await fetch(baseUrl + '/auth/v1/user', {headers: {apikey: config.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + token}});
-    if (!response.ok) throw new Error('Der Anmeldelink ist ungültig oder abgelaufen. Bitte einen neuen Magic Link anfordern.');
-    const user = await response.json();
-    if (!user.id) throw new Error('Die Anmeldung konnte nicht bestätigt werden.');
-    accessToken = token;
-    sessionStorage.setItem('clara-teacher-token', accessToken);
-    status.textContent = '';
-    showDashboard();
-  } catch (error) { status.textContent = error.message; }
-}
-
-function logout(){sessionStorage.removeItem('clara-teacher-token');accessToken='';location.reload();}
-
-if(!liveMode){
-  $('#demoNotice').classList.remove('hidden');
-  $('#demoLogin').classList.remove('hidden');
-  $('#loginForm').classList.add('hidden');
-  $('#demoLogin').addEventListener('click',()=>{demoMode=true;showDashboard();});
-}else{
-  $('#loginForm').addEventListener('submit',signIn);
-  restoreTeacherSession();
-}
-$('#logoutBtn').addEventListener('click',logout);
-$('#refreshBtn').addEventListener('click',loadSubmissions);
-$('#csvBtn').addEventListener('click',exportCsv);
-$('#gateOpenBtn').addEventListener('click',()=>setGate(true));
-$('#gateCloseBtn').addEventListener('click',()=>setGate(false));
-$('#searchInput').addEventListener('input',render);
-$('#classFilter').addEventListener('change',render);
-$('#groupFilter').addEventListener('change',render);
-$('#closeDetail').addEventListener('click',()=>$('#detailDialog').close());
-$('#detailDialog').addEventListener('click',event=>{if(event.target===event.currentTarget)event.currentTarget.close();});
-if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    const id = await rpc('create_course', {p_name: $('#courseName').value, p_count: Number($('#courseCount').value)});
+    $('#courseName').value = ''; $('#courseStatus').textContent = 'Kurs angelegt. Jetzt die Codeliste drucken und die Namen handschriftlich ergänzen.';
+    await refresh(); showCodes(id);
+  } catch(error) { $('#courseStatus').textContent = error.message; }
+  finally { event.submitter.disabled = false; }
+});
+$('#logoutBtn').onclick = async () => { try { await SchoolAPI.logout(); } finally { location.reload(); } };
+$('#refreshBtn').onclick = refresh;
+$('#csvBtn').onclick = exportCsv;
+$('#searchInput').oninput = render;
+$('#classFilter').onchange = render;
+$('#groupFilter').onchange = render;
+$('#closeDetail').onclick = () => $('#detailDialog').close();
+$('#closeCodes').onclick = () => $('#codesDialog').close();
+$('#printCodes').onclick = () => { document.body.classList.add('print-codes'); window.print(); };
+window.addEventListener('afterprint', () => document.body.classList.remove('print-codes'));
+$('#codesDialog').addEventListener('close', () => document.body.classList.remove('print-codes'));
+if (SchoolAPI.hasSession()) showDashboard().catch(error => { $('#loginStatus').textContent = error.message; });
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(() => {});

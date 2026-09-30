@@ -448,14 +448,10 @@
 
           <div class="task-card">
             <h3>Deine Arbeitssitzung</h3>
-            <p class="instruction">Tragt euren Vornamen oder ein vereinbartes Kürzel und eure Klasse ein – zum Beispiel <strong>Linn</strong> oder das Kürzel <strong>LiSo</strong>. Diese Angaben helfen bei der späteren Zuordnung im Lehrerbereich.</p>
-            <div class="session-grid">
-              <label>Name oder Kürzel
-                <input type="text" class="essential" data-save="student_name" maxlength="80" autocomplete="name" placeholder="z. B. Linn oder LiSo">
-              </label>
-              <label>Klasse / Kurs
-                <input type="text" class="essential" data-save="class_code" maxlength="40" autocomplete="off" placeholder="z. B. E1 Geschichte">
-              </label>
+            <p class="instruction">Meldet euch mit dem persönlichen Zugangscode eurer Lehrkraft an. Euer Kurs wird automatisch zugeordnet. Bitte keine Namen in Antworten eintragen.</p>
+            <div class="field-grid">
+              <label>Persönlicher Zugangscode<input id="studentCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"></label>
+              <div><button id="studentLogin" class="button primary" type="button">Mit Code anmelden</button><button id="studentLogout" class="button soft" type="button" hidden>Abmelden</button><p id="studentStatus" role="status"></p></div>
             </div>
             <div class="privacy-note"><span aria-hidden="true">ⓘ</span><span>Eure Antworten werden zunächst nur auf diesem iPad gespeichert. Erst mit „Ergebnisse abgeben“ werden sie an die Lehrkraft übertragen.</span></div>
           </div>
@@ -687,7 +683,7 @@
           <div class="result-panel" id="resultPanel"></div>
           <div class="task-card submit-panel">
             <h3>Ergebnisse abgeben</h3>
-            <p>Prüft eure Angaben und sendet anschließend den vollständigen Arbeitsstand an den Lehrerbereich. Nachträgliche Verbesserungen könnt ihr erneut absenden; sie erscheinen als neue Abgabe.</p>
+            <p>Prüft eure Angaben und sendet anschließend den vollständigen Arbeitsstand an eure Lehrkraft. Nachträgliche Verbesserungen könnt ihr erneut absenden; sie ersetzen eure vorherige Abgabe.</p>
             <button class="button primary" id="submitBtn">Ergebnisse an die Lehrkraft senden</button>
             <div class="submit-status" id="submitStatus" role="status" aria-live="polite"></div>
           </div>
@@ -708,9 +704,10 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="./config.js"></script>
+  <script src="./api.js"></script>
   <script>
-    const STORAGE_KEY = 'clara-neumann-quellenarbeit-v2';
-    const DEVICE_KEY = 'clara-neumann-device-id';
+    let STORAGE_KEY = 'clara-neumann-quellenarbeit-v3-guest';
+
     const state = { answers: {}, group: '', phase: 'intro', sourceIndex: 0, claims: [], gateOpen: false, gateFor: '' };
 
     const sources = {
@@ -809,7 +806,8 @@
         const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
         if (stored && stored.answers) Object.assign(state, stored);
       } catch (_) {}
-      if (!Array.isArray(state.claims)) state.claims = [];
+        if (!Array.isArray(state.claims)) state.claims = [];
+        state.claims = state.claims.filter(c => c && typeof c === 'object').slice(0, 100).map(c => ({...c, id: crypto.randomUUID()}));
       if (!state.claims.length) state.claims = [{id: crypto.randomUUID()}, {id: crypto.randomUUID()}, {id: crypto.randomUUID()}];
     }
 
@@ -863,6 +861,7 @@
     }
 
     function showPhase(name, push = true) {
+      if (!studentSession && name !== 'intro') { showToast('Bitte zuerst mit eurem Zugangscode anmelden.'); name = 'intro'; }
       if (name === 'sources' && !state.group) showToast('Wählt zuerst eure Quellengruppe.');
       if (LOCKED_PHASES.includes(name) && !gateUnlocked()) {
         showToast('Die Mischgruppen sind noch nicht freigegeben.');
@@ -1002,16 +1001,17 @@
 
     function stateFileName() {
       const clean = v => String(v || '').trim().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
-      const parts = ['Arbeitsstand', clean(state.answers.class_code), clean(state.answers.student_name)].filter(Boolean);
+      const parts = ['Arbeitsstand', clean(studentSession?.course_name), studentSession ? `Platz-${studentSession.seat}` : ''].filter(Boolean);
       return `${parts.join('_')}_${new Date().toISOString().slice(0, 10)}.json`;
     }
 
     function saveStateFile() {
       const payload = {
         app: 'clara-neumann-quellenarbeit',
-        version: 2,
+        version: 3,
         saved_at: new Date().toISOString(),
-        state: {answers: state.answers, group: state.group, phase: state.phase, sourceIndex: state.sourceIndex, claims: state.claims, gateOpen: state.gateOpen, gateFor: state.gateFor}
+        student_id: studentSession?.student_id,
+          state: {answers: state.answers, group: state.group, phase: state.phase, sourceIndex: state.sourceIndex, claims: state.claims, gateOpen: state.gateOpen, gateFor: state.gateFor}
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json;charset=utf-8'});
       const a = document.createElement('a');
@@ -1030,6 +1030,9 @@
         if (!incoming || typeof incoming.answers !== 'object' || incoming.answers === null) {
           throw new Error('format');
         }
+        if (!studentSession) throw new Error('login');
+        if (data.student_id && data.student_id !== studentSession.student_id) { alert('Dieser Arbeitsstand gehört zu einem anderen Schülercode.'); return; }
+        delete incoming.answers.student_name; delete incoming.answers.class_code;
         const hasWork = Object.values(state.answers || {}).some(v => String(v || '').trim());
         if (hasWork && !confirm('Die Eingaben auf diesem Gerät werden durch den geladenen Arbeitsstand ersetzt. Fortfahren?')) return;
         const restored = {
@@ -1038,8 +1041,8 @@
           phase: typeof incoming.phase === 'string' ? incoming.phase : 'intro',
           sourceIndex: Number(incoming.sourceIndex) || 0,
           claims: Array.isArray(incoming.claims) ? incoming.claims : [],
-          gateOpen: Boolean(incoming.gateOpen),
-          gateFor: typeof incoming.gateFor === 'string' ? incoming.gateFor : ''
+          gateOpen: false,
+          gateFor: ''
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
         location.reload();
@@ -1048,76 +1051,22 @@
       }
     }
 
-    function getDeviceId() {
-      let id = localStorage.getItem(DEVICE_KEY);
-      if (!id) {
-        id = crypto.randomUUID();
-        localStorage.setItem(DEVICE_KEY, id);
-      }
-      return id;
-    }
-
-    function submissionPayload() {
-      return {
-        display_name: value('student_name'),
-        class_code: value('class_code'),
-        group_code: state.group,
-        device_id: getDeviceId(),
-        app_version: '2.1.0',
-        answers: {
-          ...state.answers,
-          claims: state.claims,
-          selected_group: state.group,
-          completion_percent: Number(document.getElementById('progressFill').parentElement.getAttribute('aria-valuenow') || 0)
-        }
-      };
-    }
-
     async function submitResults() {
       const button = document.getElementById('submitBtn');
       const status = document.getElementById('submitStatus');
-      const payload = submissionPayload();
-      if (!payload.display_name || !payload.class_code || !payload.group_code) {
-        status.textContent = 'Bitte ergänzt zuerst Name oder Kürzel, Klasse und Quellengruppe.';
-        showToast('Für die Abgabe fehlen noch Angaben.');
-        return;
-      }
-      const config = window.APP_CONFIG || {};
-      const live = Boolean(config.SUPABASE_URL && config.SUPABASE_ANON_KEY && !config.SUPABASE_URL.includes('DEIN-PROJEKT'));
+      if (!studentSession || !state.group) { status.textContent = 'Bitte zuerst mit eurem Zugangscode anmelden und eine Quellengruppe wählen.'; return; }
       button.disabled = true;
-      button.textContent = 'Abgabe wird gesendet …';
+      status.textContent = 'Abgabe wird gesendet …';
       try {
-        if (live) {
-          if (!navigator.onLine) throw new Error('Dieses iPad ist gerade offline. Eure Eingaben bleiben gespeichert; versucht die Abgabe erneut, sobald eine Internetverbindung besteht.');
-          const base = config.SUPABASE_URL.replace(/\/$/, '');
-          const response = await fetch(`${base}/rest/v1/submissions`, {
-            method: 'POST',
-            headers: {
-              apikey: config.SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${config.SUPABASE_ANON_KEY}`,
-              'Content-Type': 'application/json',
-              Prefer: 'return=minimal'
-            },
-            body: JSON.stringify(payload)
-          });
-          if (!response.ok) throw new Error(`Die Abgabe konnte nicht gespeichert werden (${response.status}). Bitte meldet euch bei der Lehrkraft.`);
-          state.lastSubmission = new Date().toISOString();
-          saveState();
-          status.textContent = `Erfolgreich abgegeben: ${new Date().toLocaleString('de-DE')}`;
-          showToast('Eure Ergebnisse wurden abgegeben.');
-        } else {
-          const demos = JSON.parse(localStorage.getItem('clara-neumann-demo-submissions') || '[]');
-          demos.unshift({id: crypto.randomUUID(), submitted_at: new Date().toISOString(), reviewed: false, ...payload});
-          localStorage.setItem('clara-neumann-demo-submissions', JSON.stringify(demos));
-          status.textContent = 'Testabgabe gespeichert. Im Demomodus ist sie nur im Lehrerbereich dieses Geräts sichtbar.';
-          showToast('Testabgabe gespeichert.');
-        }
-      } catch (error) {
-        status.textContent = error.message || 'Die Abgabe ist fehlgeschlagen. Eure Eingaben bleiben auf diesem Gerät gespeichert.';
-      } finally {
-        button.disabled = false;
-        button.textContent = 'Ergebnisse erneut abgeben';
-      }
+        const answers = {...state.answers, claims: state.claims, selected_group: state.group,
+          completion_percent: Number(document.getElementById('progressFill').parentElement.getAttribute('aria-valuenow') || 0)};
+        delete answers.student_name; delete answers.class_code;
+        await SchoolAPI.rpc('submit_course_work', {p_code: studentSession.code, p_group: state.group, p_answers: answers});
+        state.lastSubmission = new Date().toISOString(); saveState();
+        status.textContent = 'Erfolgreich abgegeben: ' + new Date().toLocaleString('de-DE');
+        showToast('Eure Ergebnisse wurden abgegeben.');
+      } catch (error) { status.textContent = error.message + ' Eure Eingaben bleiben auf diesem Gerät gespeichert.'; }
+      finally { button.disabled = false; }
     }
 
     let timerRemaining = 120;
@@ -1147,59 +1096,11 @@
     /* ---------- Freigabe der Mischgruppen ------------------------------ */
 
     const LOCKED_PHASES = ['exchange', 'revise', 'reflection'];
-    const DEMO_GATE_KEY = 'clara-neumann-demo-gates';
     const GATE_POLL_MS = 8000;
-    const gateWatch = { timer: null, busy: false, failures: 0 };
-
-    function isLive() {
-      const c = window.APP_CONFIG || {};
-      return Boolean(c.SUPABASE_URL && c.SUPABASE_ANON_KEY && !c.SUPABASE_URL.includes('DEIN-PROJEKT'));
-    }
-
-    function classKey() {
-      return String(state.answers.class_code || '').trim().toLocaleLowerCase('de').slice(0, 40);
-    }
-
-    function gateUnlocked() {
-      return Boolean(state.gateOpen) && state.gateFor === classKey();
-    }
-
-    // Beim Start einmal gegenpruefen: Hat die Lehrkraft die Freigabe inzwischen
-    // zurueckgenommen (naechste Stunde, andere Lerngruppe), wird wieder gesperrt.
-    async function revalidateGate() {
-      if (!state.gateOpen || !isLive()) return;
-      const key = classKey();
-      if (!key) return;
-      try {
-        const config = window.APP_CONFIG;
-        const base = config.SUPABASE_URL.replace(/\/$/, '');
-        const response = await fetch(`${base}/rest/v1/class_gates?select=exchange_open&class_key=eq.${encodeURIComponent(key)}`, {
-          headers: {apikey: config.SUPABASE_ANON_KEY, Authorization: `Bearer ${config.SUPABASE_ANON_KEY}`},
-          cache: 'no-store'
-        });
-        if (!response.ok) return;
-        const rows = await response.json();
-        if (Array.isArray(rows) && rows[0] && rows[0].exchange_open) return;
-        state.gateOpen = false;
-        state.gateFor = '';
-        saveState();
-        applyGate();
-        if (LOCKED_PHASES.includes(state.phase)) showPhase('waiting');
-      } catch (_) {
-        // Offline: gespeicherte Freigabe bleibt bestehen.
-      }
-    }
-
-    function unlockGate(silent = false) {
-      if (!state.gateOpen || state.gateFor !== classKey()) {
-        state.gateOpen = true;
-        state.gateFor = classKey();
-        saveState();
-      }
-      applyGate();
-      if (!silent) showToast('Die Mischgruppen sind freigegeben.');
-    }
-
+    const gateWatch = {timer: null, busy: false};
+    function classKey() { return studentSession?.course_id || ''; }
+    function gateUnlocked() { return Boolean(studentSession && state.gateOpen && state.gateFor === classKey()); }
+    async function revalidateGate() { await checkGate(); }
     function applyGate() {
       const open = gateUnlocked();
       document.querySelectorAll('#phaseNav [data-phase]').forEach(b => {
@@ -1236,84 +1137,31 @@
       if (hintEl && hint) hintEl.textContent = hint;
     }
 
-    async function checkGate(manual = false) {
-      if (gateUnlocked() || gateWatch.busy) return;
-      const key = classKey();
-      if (!key) {
-        setWaitingMessage('Eure Klasse fehlt noch.', 'Tragt auf der Startseite (Phase 1) Klasse oder Kurs ein – genau so, wie die Lehrkraft sie nennt. Erst dann kann die Freigabe zugeordnet werden.');
-        document.getElementById('waitingFix').hidden = false;
-        return;
-      }
-      document.getElementById('waitingFix').hidden = true;
-      if (!isLive()) {
-        let gates = {};
-        try { gates = JSON.parse(localStorage.getItem(DEMO_GATE_KEY) || '{}'); } catch (_) {}
-        const entry = gates[key];
-        if (entry && (entry === true || entry.open)) { unlockGate(); return; }
-        setWaitingMessage('Demomodus: Wir warten auf die Freigabe im Lehrerbereich dieses Geräts.', 'Ohne Supabase funktioniert die Freigabe nur auf diesem Gerät.');
-        return;
-      }
+    async function checkGate() {
+      if (!studentSession || gateWatch.busy) return;
       gateWatch.busy = true;
-      const recheck = document.getElementById('waitingRecheck');
-      if (manual) recheck.disabled = true;
       try {
-        const config = window.APP_CONFIG;
-        const base = config.SUPABASE_URL.replace(/\/$/, '');
-        const response = await fetch(`${base}/rest/v1/class_gates?select=exchange_open&class_key=eq.${encodeURIComponent(key)}`, {
-          headers: {apikey: config.SUPABASE_ANON_KEY, Authorization: `Bearer ${config.SUPABASE_ANON_KEY}`},
-          cache: 'no-store'
-        });
-        if (!response.ok) throw new Error(String(response.status));
-        const rows = await response.json();
-        gateWatch.failures = 0;
-        if (Array.isArray(rows) && rows[0] && rows[0].exchange_open) { unlockGate(); return; }
-        setWaitingMessage('Wir warten auf die Freigabe durch die Lehrkraft …', 'Lasst diese Seite geöffnet. Sobald die Lehrkraft freigibt, erscheint hier automatisch die Schaltfläche zum Weiterarbeiten.');
-      } catch (_) {
-        gateWatch.failures += 1;
-        if (gateWatch.failures >= 3) {
-          setWaitingMessage('Die Freigabe lässt sich gerade nicht prüfen.', 'Vermutlich ist dieses iPad offline. Meldet euch bei der Lehrkraft.');
-          if (releaseCode()) document.getElementById('codeFallback').hidden = false;
-        } else {
-          setWaitingMessage('Verbindung wird geprüft …', 'Einen Moment bitte.');
+        const context = await SchoolAPI.rpc('student_context', {p_code: studentSession.code});
+        state.gateOpen = context.exchange_open; state.gateFor = context.course_id;
+        saveState(); applyGate();
+        if (!state.gateOpen) {
+          setWaitingMessage('Wir warten auf die Freigabe durch die Lehrkraft …', 'Die Freigabe gilt für euren Kurs. Lasst diese Seite geöffnet.');
+          if (LOCKED_PHASES.includes(state.phase)) showPhase('waiting');
         }
-      } finally {
-        gateWatch.busy = false;
-        if (manual) recheck.disabled = false;
-      }
+      } catch (error) {
+        state.gateOpen = false; state.gateFor = ''; applyGate();
+        setWaitingMessage('Die Freigabe lässt sich gerade nicht prüfen.', error.message + ' Bitte die Lehrkraft fragen.');
+        if (LOCKED_PHASES.includes(state.phase)) showPhase('waiting');
+      } finally { gateWatch.busy = false; }
     }
-
-    function releaseCode() {
-      return String((window.APP_CONFIG || {}).RELEASE_CODE || '').trim();
-    }
-
-    function submitReleaseCode() {
-      const expected = releaseCode().toLocaleLowerCase('de');
-      const entered = document.getElementById('releaseCode').value.trim().toLocaleLowerCase('de');
-      const feedback = document.getElementById('codeFeedback');
-      if (!expected) return;
-      if (entered && entered === expected) {
-        feedback.textContent = '';
-        unlockGate();
-      } else {
-        feedback.textContent = 'Dieser Code stimmt nicht. Fragt bitte noch einmal bei der Lehrkraft nach.';
-      }
-    }
-
-    function startGateWatch() {
-      stopGateWatch();
-      applyGate();
-      if (gateUnlocked()) return;
-      checkGate();
-      gateWatch.timer = setInterval(checkGate, GATE_POLL_MS);
-    }
-
-    function stopGateWatch() {
-      if (gateWatch.timer) clearInterval(gateWatch.timer);
-      gateWatch.timer = null;
-    }
+    function startGateWatch() { applyGate(); checkGate(); }
+    function stopGateWatch() { /* Course polling also continues beyond the waiting page. */ }
 
     function init() {
+      restoreStudent();
       loadState();
+      state.gateOpen = false; state.gateFor = "";
+      delete state.answers.student_name; delete state.answers.class_code;
       bindSavedControls();
       document.querySelectorAll('[data-next]').forEach(b => b.addEventListener('click', () => showPhase(b.dataset.next)));
       document.querySelectorAll('#phaseNav [data-phase]').forEach(b => b.addEventListener('click', () => { showPhase(b.dataset.phase); setNav(false); }));
@@ -1331,8 +1179,6 @@
       document.getElementById('addClaim').addEventListener('click', () => { state.claims.push({id: crypto.randomUUID()}); renderClaims(); saveState(); });
       document.getElementById('waitingRecheck').addEventListener('click', () => checkGate(true));
       document.getElementById('waitingFix').addEventListener('click', () => showPhase('intro'));
-      document.getElementById('releaseCodeBtn').addEventListener('click', submitReleaseCode);
-      document.getElementById('releaseCode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitReleaseCode(); } });
       document.getElementById('continueExchange').addEventListener('click', () => showPhase('exchange'));
       document.getElementById('timerStart').addEventListener('click', toggleTimer);
       document.getElementById('timerReset').addEventListener('click', () => { if (timerHandle) clearInterval(timerHandle); timerHandle = null; timerRemaining = 120; document.getElementById('timerStart').textContent = 'Start'; document.getElementById('timerMessage').textContent = 'Bereit für eure Probe.'; updateTimer(); });
@@ -1352,11 +1198,47 @@
       applyGate();
       showPhase(state.phase || 'intro', false);
       revalidateGate();
+      gateWatch.timer = setInterval(checkGate, GATE_POLL_MS);
+      document.getElementById('studentLogin').addEventListener('click', loginStudent);
+      document.getElementById('studentCode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); loginStudent(); } });
+      document.getElementById('studentLogout').addEventListener('click', logoutStudent);
       updateProgress();
       updateTimer();
       if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
         navigator.serviceWorker.register('./sw.js').catch(() => {});
       }
+    }
+
+    let studentSession = null;
+    function restoreStudent() {
+      try { studentSession = JSON.parse(sessionStorage.getItem('clara-student-v3') || 'null'); } catch (_) {}
+      if (studentSession?.student_id) {
+        STORAGE_KEY = 'clara-neumann-quellenarbeit-v3-' + studentSession.student_id;
+        document.getElementById('studentStatus').textContent = studentSession.course_name + ' · Schülerplatz ' + studentSession.seat;
+        document.getElementById('studentCode').value = SchoolAPI.formatCode(studentSession.code);
+        document.getElementById('studentCode').readOnly = true;
+        document.getElementById('studentLogin').hidden = true;
+        document.getElementById('studentLogout').hidden = false;
+      }
+    }
+    async function loginStudent() {
+      const button = document.getElementById('studentLogin');
+      const status = document.getElementById('studentStatus');
+      button.disabled = true;
+      try {
+        const code = SchoolAPI.normalizeCode(document.getElementById('studentCode').value);
+        if (!/^[a-f0-9]{24}$/.test(code)) throw new Error('Bitte den vollständigen persönlichen Code eingeben. Bindestriche sind optional.');
+        const context = await SchoolAPI.rpc('student_context', {p_code: code});
+        sessionStorage.setItem('clara-student-v3', JSON.stringify({...context, code}));
+        location.reload();
+      } catch (error) { status.textContent = error.message; }
+      finally { button.disabled = false; }
+    }
+    function logoutStudent() {
+      if (!confirm('Vor dem Abmelden bitte bei Bedarf den Arbeitsstand als Datei sichern. Der lokale Arbeitsstand dieses Schülerplatzes wird auf diesem Gerät entfernt. Abmelden?')) return;
+      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem('clara-student-v3');
+      location.reload();
     }
 
     init();

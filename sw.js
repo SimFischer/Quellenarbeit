@@ -1,10 +1,11 @@
-const CACHE_NAME = 'clara-neumann-v9';
+const CACHE_NAME = 'clara-neumann-v10';
 const CORE_FILES = [
   './',
   './index.html',
   './lehrer.html',
   './config.js',
   './teacher.js',
+  './api.js',
   './manifest.webmanifest',
   './icon.svg',
   './icon-180.png',

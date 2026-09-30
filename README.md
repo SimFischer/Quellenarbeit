@@ -1,86 +1,58 @@
-# Der Fall Clara Neumann
+# Der Fall Clara Neumann – Kurse und persönliche Zugangscodes
 
-Interaktive Quellenarbeit für den Geschichtsunterricht. Die Schüleransicht ist für iPads optimiert, speichert den Arbeitsstand automatisch und kann als Web-App zum Home-Bildschirm hinzugefügt werden. Der Lehrerbereich sammelt, filtert und exportiert die Abgaben.
+Lehrkräfte melden sich mit Benutzername und Passwort an, legen eigene Kurse an und erzeugen persönliche Schülercodes. Die Unterrichtsinhalte bleiben erhalten. Die App speichert keine Namensliste.
 
-## Dateien
+## Einmalige Einrichtung
 
-- `index.html`: Schüleransicht mit allen Quellen und Aufgaben
-- `lehrer.html`: geschützter Lehrerbereich
-- `teacher.js`: Anmeldung, Ergebnisübersicht und CSV-Export
-- `config.js`: öffentliche Supabase-Konfiguration
-- `supabase_setup.sql`: Tabellen und Zugriffsregeln
-- `sw.js`: Offline-Nutzung nach dem ersten Aufruf
-- `manifest.webmanifest`: Installation als Web-App
+1. `supabase_v3.sql` vollständig im Supabase SQL Editor ausführen. Die Migration ist wiederholbar und erstellt die neuen Tabellen und serverseitigen Zugriffsregeln.
+2. Öffentliche Projekt-URL und Publishable-/Anon-Schlüssel in `config.js` eintragen. Niemals einen Secret-/Service-Role-Schlüssel veröffentlichen.
+3. Lehrerzugänge wie unten beschrieben anlegen.
+4. Dateien auf GitHub Pages veröffentlichen: <https://simfischer.github.io/Quellenarbeit/> und `lehrer.html`.
 
-## 1. Zunächst im Demomodus testen
+**Upgrade:** Die alten Tabellen `submissions` und `class_gates` bleiben erhalten, sind anschließend aber nicht mehr über die Browser-API zugänglich. Die Projektadministration kann alte Abgaben im Supabase-Dashboard exportieren. Sie werden nicht automatisch neuen Kursen zugeordnet. `supabase_setup.sql` ist die historische Version und darf nach dem Upgrade nicht erneut ausgeführt werden.
 
-Solange `SUPABASE_URL` und `SUPABASE_ANON_KEY` in `config.js` leer sind, arbeitet die Anwendung im Demomodus.
+## Lehrerzugang anlegen (Schuladministration)
 
-1. Öffne die Schüleransicht.
-2. Bearbeite einige Felder und wähle eine Quellengruppe.
-3. Öffne am Ende die Ergebnisansicht und klicke auf „Ergebnisse an die Lehrkraft senden“.
-4. Öffne anschließend `lehrer.html` im selben Browser.
+Supabase Auth prüft und hasht das Passwort. Intern benötigt der Dienst eine E-Mail-förmige Kennung; sie ist **kein Postfach** und wird nie für Anmeldelinks verwendet. Die App fragt ausschließlich nach Benutzername und Passwort.
 
-Demodaten werden nur auf diesem Gerät gespeichert. Geräteübergreifende Abgaben funktionieren erst nach Schritt 2.
+1. Eindeutigen Benutzernamen festlegen, z. B. `sfischer` (3–40 Zeichen: Kleinbuchstaben a–z, Ziffern, Punkt, Unterstrich oder Bindestrich; erstes Zeichen Buchstabe/Ziffer).
+2. **Authentication → Users → Add user → Create new user:** Interne Kennung `sfischer@lehrer.invalid` und ein eigenes starkes Passwort eintragen. **Auto Confirm User** aktivieren. Keine Einladung versenden.
+3. Im SQL Editor ausführen, dabei den Benutzernamen ersetzen:
 
-## 2. Supabase für zentrale Abgaben einrichten
+```sql
+insert into public.teacher_profiles (user_id, display_name)
+select id, 'sfischer' from auth.users
+where email = 'sfischer@lehrer.invalid'
+on conflict (user_id) do nothing;
+```
 
-1. Erstelle unter <https://supabase.com> ein Projekt in einer europäischen Region.
-2. Öffne den SQL Editor und führe `supabase_setup.sql` vollständig aus.
-3. Lege unter **Authentication → Users** einen Benutzer für die Lehrkraft an.
-4. Kopiere die UUID dieses Benutzers.
-5. Führe die am Ende der SQL-Datei vorbereitete `insert`-Anweisung mit dieser UUID aus.
-6. Öffne **Project Settings → API** und kopiere:
-   - Project URL
-   - `anon public`-Schlüssel
-7. Trage beide Werte in `config.js` ein.
+4. In `lehrer.html` mit `sfischer` und dem Passwort anmelden. Für weitere Lehrkräfte wiederholen. Eine selbst registrierte Auth-Kennung erhält ohne diesen administrativen Freigabeschritt keine Kursrechte.
 
-Der öffentliche `anon`-Schlüssel darf in einer Browser-App stehen. Niemals den `service_role`-Schlüssel eintragen. Die SQL-Regeln erlauben Schülern nur neue Abgaben; lesen und markieren dürfen ausschließlich freigeschaltete Lehrkräfte.
+Passwörter nicht in SQL-Skripten, im Repository oder in Codelisten speichern. Bei vergessenem Passwort setzt die Schuladministration es über die Benutzerverwaltung zurück; es gibt keine E-Mail-Wiederherstellung. Bestehende reale E-Mail-Konten werden durch die Migration nicht geändert.
 
-Wird ein bereits eingerichtetes Projekt aktualisiert, genügt es, den Abschnitt **„Freigabe der Mischgruppen"** aus `supabase_setup.sql` erneut auszuführen. Er legt die Tabelle `class_gates` an; bestehende Abgaben bleiben unberührt.
+## Unterrichtsablauf
 
-## Ablauf: Freigabe der Mischgruppen
+- **Kurs anlegen:** Kursname und 1–100 Schülerplätze wählen. Gleichnamige Kurse bleiben durch ihre internen IDs getrennt.
+- **Codeliste drucken:** Namen ausschließlich handschriftlich ergänzen. Liste vertraulich verwahren; jedem Schüler nur den eigenen Code geben.
+- **Schülerzugang:** Code eingeben; der Server ordnet den Kurs automatisch zu. Bindestriche und Groß-/Kleinschreibung sind unerheblich.
+- **Abgaben:** Jede Abgabe gehört zu einem festen Schülerplatz. Erneutes Senden ersetzt dessen vorherigen Stand und setzt „gesehen“ zurück. Nach Kurs/Quellengruppe filtern, Antworten ansehen, markieren und als CSV exportieren.
+- **Mischgruppen:** Freigeben/Sperren gilt für den ausgewählten Kurs. Verbundene Geräte prüfen alle acht Sekunden, auch nach dem Weitergehen. Offline ist die Freigabe nicht verfügbar. Bereits geladene Unterrichtsmaterialien sind kein geheim zu haltender Inhalt.
+- **Code verloren:** In der Codeliste „Code ersetzen“. Der alte Code wird für neue Serveranfragen sofort ungültig. Schülerplatz und vorhandene Abgabe bleiben erhalten. Bereits lokal gespeicherte Inhalte lassen sich nicht aus der Ferne zurückrufen.
 
-Nach Phase 4 gelangen die Schülerinnen und Schüler nicht mehr direkt in die Mischgruppen, sondern auf eine Warteseite. Dort steht, dass die Klasse gleich neu eingeteilt wird: In jeder Mischgruppe sitzt genau eine Person aus jeder Quellengruppe A bis E.
+## Arbeitsstand und gemeinsam genutzte iPads
 
-1. Im Lehrerbereich unter **Mischgruppen freigeben** die Klasse eintragen (Vorschläge kommen aus den bereits eingegangenen Abgaben).
-2. Auf **Freigeben** klicken. Die iPads prüfen alle paar Sekunden automatisch und zeigen dann die Schaltfläche „Weiter zu den Mischgruppen".
-3. **Sperren** nimmt die Freigabe zurück. Geräte, die schon weiter sind, arbeiten zunächst weiter und landen beim nächsten Neuladen wieder auf der Warteseite.
+Eingaben werden pro Schülerplatz lokal gespeichert; der Zugangscode bleibt nur für die Browsersitzung gespeichert. Vor Gerätewechsel „Arbeitsstand sichern“. Am anderen Gerät zuerst mit eigenem Code anmelden, dann „Arbeitsstand laden“. Die Datei enthält keinen Zugangscode. Abgegebene Antworten werden nicht automatisch auf ein anderes iPad heruntergeladen.
 
-Ein iPad merkt sich die Freigabe nur für die eingetragene Klasse und prüft sie bei jedem Start noch einmal nach. Für die nächste Stunde oder eine andere Lerngruppe genügt also **Sperren** – die Geräte starten dann wieder gesperrt, ohne dass jemand den Browserspeicher leeren muss.
+**Vor Weitergabe eines iPads:** Arbeitsstand bei Bedarf als Datei sichern und „Abmelden“. Das entfernt den lokalen Arbeitsstand dieses Schülerplatzes. Bloßes Schließen des Tabs löscht ihn nicht. Alte Arbeitsstände der Version 2 bleiben unter ihrem bisherigen Speicherschlüssel; bei Bedarf vor Weitergabe die Website-Daten löschen.
 
-Die Zuordnung läuft über das Feld **Klasse / Kurs** aus Phase 1. Groß- und Kleinschreibung spielt keine Rolle, die Schreibweise sollte aber einheitlich sein. Fehlt die Klassenangabe, verweist die Warteseite zurück auf Phase 1.
+## Zugriffsmodell
 
-Ohne Freigabe kommt niemand weiter – die Phasen 5 bis 7 bleiben in der Seitenleiste gesperrt. Einzige Ausnahme ist der **Notfall-Freigabecode** aus `config.js` (`RELEASE_CODE`): Kann ein iPad die Freigabe mehrfach nicht online prüfen, blendet es ein Codefeld ein. Die Lehrkraft findet den Code in ihrem Bereich unter „Mischgruppen freigeben" und nennt ihn mündlich. Ein leerer `RELEASE_CODE` schaltet diese Möglichkeit ganz ab.
+Row Level Security beschränkt Lehrkräfte auf eigene Kurse, Codes und Abgaben. Schüler haben keinen direkten Tabellenzugriff. Zwei eng begrenzte Datenbankfunktionen prüfen den 96-Bit-Zufallscode und liefern nur den Kursstatus bzw. nehmen eine Abgabe entgegen. Die Zuordnung erfolgt serverseitig. Alte Namens-/Zuordnungsfelder werden aus dem Abgabeobjekt entfernt; Freitexte können weiterhin personenbezogene Angaben enthalten. Codes sind persönliche Zugangsschlüssel.
 
-## Über mehrere Stunden arbeiten
+Die handschriftliche Zuordnung bedeutet Pseudonymisierung, keine vollständige Anonymität. Aufbewahrung, Löschfristen und schulische Freigabe müssen zum Einsatz passen. Nach Ablauf der Aufbewahrungsfrist kann die Projektadministration Kurse in Supabase löschen; zugehörige Schülerplätze und Abgaben werden mitgelöscht.
 
-Reicht eine Stunde nicht, sichern die Gruppen ihren Stand als Datei und laden ihn in der Folgestunde wieder – auch auf einem anderen iPad.
+## Tests
 
-1. In der Seitenleiste („Schritte") unter **Stunde unterbrechen** auf **Arbeitsstand sichern** klicken. Es entsteht eine Datei wie `Arbeitsstand_E1-Geschichte_Linn_2026-09-15.json`.
-2. In der nächsten Stunde dort **Arbeitsstand laden** wählen und die Datei auswählen.
-3. Die App springt genau zu der Phase zurück, in der aufgehört wurde – samt Quellengruppe, Texten und Einschätzungen.
+`npm ci` und `npm test` prüfen die SQL-Migration in einer lokalen PostgreSQL-Engine sowie die Schüleroberfläche mit simulierten Serverantworten. Keine Produktionsdaten: geprüft werden getrennte Lehrerrechte, ungültige/ersetzte Codes, Abgaben, Kursfreigabe und die Entfernung alter Namensfelder.
 
-Gesichert wird der komplette Arbeitsstand, nicht nur die Texte. Sind auf dem Gerät bereits Eingaben vorhanden, wird vor dem Überschreiben nachgefragt. Auf dem iPad landet die Datei in **Dateien → Downloads**; sie kann auch in einen Klassenordner oder Cloud-Ordner gelegt werden.
-
-## 3. Mit GitHub Pages veröffentlichen
-
-1. Lade alle Dateien dieses Ordners in ein GitHub-Repository hoch.
-2. Öffne im Repository **Settings → Pages** und wähle unter **Source** den Eintrag **GitHub Actions**.
-3. Der mitgelieferte Workflow veröffentlicht bei jedem Push auf `main` automatisch die aktuelle Version.
-4. Nach der Veröffentlichung lautet der Schülerlink typischerweise:
-   `https://BENUTZERNAME.github.io/REPOSITORY/`
-5. Der Lehrerbereich liegt unter:
-   `https://BENUTZERNAME.github.io/REPOSITORY/lehrer.html`
-
-## iPad-Einsatz
-
-- Safari öffnen und den Schülerlink aufrufen.
-- Über **Teilen → Zum Home-Bildschirm** kann die Lernstrecke wie eine App gestartet werden.
-- Nach dem ersten vollständigen Laden funktionieren Quellen und Eingabefelder auch ohne Verbindung. Für die eigentliche Abgabe muss das iPad online sein.
-- Die Antworten bleiben auf dem jeweiligen iPad gespeichert, bis „Eingaben löschen“ verwendet wird.
-- Eingabefelder und Schaltflächen sind für Touch-Bedienung ausgelegt; Safari vergrößert die Seite beim Tippen nicht automatisch.
-
-## Datenschutz
-
-Nutze möglichst Vornamen mit Initial, Kürzel oder Teamnamen statt vollständiger Namen. Lege das Supabase-Projekt in einer europäischen Region an und lösche Abgaben nach Abschluss der Unterrichtseinheit über das Supabase-Dashboard.
+Grundlagen: [Supabase Passwortanmeldung](https://supabase.com/docs/reference/javascript/auth-signinwithpassword), [Datenbankfunktionen und Berechtigungen](https://supabase.com/docs/guides/database/functions).

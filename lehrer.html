@@ -75,6 +75,18 @@
     @media(max-width:520px){ header{align-items:flex-start;flex-direction:column}.toolbar{grid-template-columns:1fr}.toolbar label:first-child{grid-column:auto}.stats{grid-template-columns:1fr 1fr} }
     @media(pointer:coarse){button,.button,.icon-button{min-height:52px}input,select{min-height:52px}}
     @media print { header,.toolbar,.stats,.row-actions,.demo,#logoutBtn { display:none!important; } body{background:#fff}.panel{border:0;box-shadow:none;padding:0}main{width:100%;margin:0} }
+    .course-list {display:grid;gap:12px;margin-top:16px}
+    .course-card {display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:16px;border:1px solid var(--line);border-radius:12px}
+    .course-card h4{margin:0 0 5px}.course-actions{display:flex;gap:8px;flex-wrap:wrap}
+    code{font-size:1rem;white-space:nowrap}.name-space{min-width:180px}
+    @media print {
+      body.print-codes > :not(#codesDialog){display:none!important}
+      body.print-codes #codesDialog{display:block!important;position:static;width:100%;max-width:none;max-height:none;box-shadow:none;border:0}
+      body.print-codes .dialog-body{overflow:visible;max-height:none;padding:0}
+      body.print-codes .dialog-head{position:static;color:#000;background:#fff;padding:0}
+      body.print-codes button,body.print-codes .replace-cell{display:none!important}
+      body.print-codes th{position:static}body.print-codes td{height:44px}body.print-codes tr{break-inside:avoid}
+    }
   </style>
 </head>
 <body>
@@ -82,52 +94,48 @@
   <main>
     <section id="loginView" class="panel login">
       <h2>Anmelden</h2>
-      <p class="lead">Der Lehrerbereich zeigt alle zentral übermittelten Ergebnisse. Zugang erhalten nur in Supabase freigeschaltete Lehrkräfte.</p>
-      <div id="demoNotice" class="demo hidden"><strong>Demomodus:</strong> Supabase ist noch nicht eingerichtet. Du kannst Testabgaben sehen, die in der Schüleransicht auf diesem Gerät gespeichert wurden.</div>
+      <p class="lead">Melde dich mit deinem Benutzernamen und Passwort an. Hier siehst du ausschließlich deine eigenen Kurse.</p>
       <form id="loginForm" class="login-grid">
-        <label>E-Mail-Adresse<input id="email" type="email" autocomplete="username" required></label>
+        <label>Benutzername<input id="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" pattern="[a-zA-Z0-9][a-zA-Z0-9._\-]{2,39}" required></label>
         <label>Passwort<input id="password" type="password" autocomplete="current-password" required></label>
         <button class="button primary" type="submit">Anmelden</button>
       </form>
-      <button id="demoLogin" class="button soft hidden">Demodaten auf diesem Gerät öffnen</button>
       <div class="status" id="loginStatus" role="status"></div>
     </section>
 
     <section id="dashboardView" class="hidden">
       <div style="display:flex;justify-content:space-between;align-items:start;gap:16px;flex-wrap:wrap">
-        <div><h2>Abgaben</h2><p class="lead" id="dashboardSubtitle">Alle eingegangenen Arbeitsstände</p></div>
+        <div><h2>Abgaben</h2><p class="lead" id="dashboardSubtitle">Abgaben aus deinen Kursen</p></div>
         <button id="logoutBtn" class="button soft">Abmelden</button>
       </div>
-      <div id="dashboardDemo" class="demo hidden"><strong>Demomodus:</strong> Diese Daten liegen nur in diesem Browser. Für Abgaben von Schüler-iPads muss Supabase eingerichtet sein.</div>
 
-      <div class="panel gate-panel">
-        <h3>Mischgruppen freigeben</h3>
-        <p class="lead">Nach Phase 4 landen die Schülerinnen und Schüler auf einer Warteseite. Erst mit dieser Freigabe können sie in die Mischgruppen wechseln – dort sitzt dann genau eine Person aus jeder Quellengruppe A bis E.</p>
-        <div class="gate-controls">
-          <label>Klasse / Kurs<input id="gateClass" type="text" list="gateClassList" placeholder="z. B. E1 Geschichte" autocomplete="off"><datalist id="gateClassList"></datalist></label>
-          <button id="gateOpenBtn" class="button primary">Freigeben</button>
-          <button id="gateCloseBtn" class="button soft">Sperren</button>
-        </div>
-        <div class="status" id="gateStatus" role="status"></div>
-        <p class="gate-code" id="gateCode"></p>
-        <div id="gateList" class="gate-list"></div>
-      </div>
+      <section class="panel gate-panel">
+        <h3>Meine Kurse</h3>
+        <form id="courseForm" class="gate-controls">
+          <label>Kursname<input id="courseName" maxlength="80" placeholder="z. B. 9a Geschichte" required></label>
+          <label>Schülerplätze<input id="courseCount" type="number" min="1" max="100" value="30" required></label>
+          <button class="button primary" type="submit">Kurs anlegen</button>
+        </form>
+        <div id="courseStatus" class="status" role="status"></div>
+        <div id="courseList" class="course-list"></div>
+        <p class="gate-code">Jeder Schülerplatz hat einen persönlichen Zugangscode. Namen trägst du nur auf der ausgedruckten Liste ein. Eine neue Abgabe ersetzt den vorherigen Stand desselben Schülerplatzes.</p>
+      </section>
       <div class="stats">
         <div class="stat"><strong id="statTotal">0</strong><span>Abgaben</span></div>
-        <div class="stat"><strong id="statNames">0</strong><span>Schüler / Teams</span></div>
+        <div class="stat"><strong id="statNames">0</strong><span>Schülerplätze</span></div>
         <div class="stat"><strong id="statReviewed">0</strong><span>Gesehen</span></div>
         <div class="stat"><strong id="statClasses">0</strong><span>Klassen / Kurse</span></div>
       </div>
       <div class="panel">
         <div class="toolbar">
-          <label>Suchen<input id="searchInput" type="text" placeholder="Name, Klasse oder Inhalt"></label>
+          <label>Suchen<input id="searchInput" type="text" placeholder="Schülerplatz, Kurs oder Inhalt"></label>
           <label>Klasse<select id="classFilter"><option value="">Alle Klassen</option></select></label>
           <label>Gruppe<select id="groupFilter"><option value="">Alle Gruppen</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select></label>
           <div style="display:flex;gap:8px"><button id="refreshBtn" class="button soft">Aktualisieren</button><button id="csvBtn" class="button primary">CSV</button></div>
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Zeit</th><th>Name / Kürzel</th><th>Klasse</th><th>Gruppe</th><th>Fortschritt</th><th>Status</th><th>Öffnen</th></tr></thead>
+            <thead><tr><th>Zeit</th><th>Schülerplatz</th><th>Klasse</th><th>Gruppe</th><th>Fortschritt</th><th>Status</th><th>Öffnen</th></tr></thead>
             <tbody id="submissionRows"></tbody>
           </table>
           <div id="emptyState" class="empty hidden">Noch keine passenden Abgaben vorhanden.</div>
@@ -141,6 +149,11 @@
     <div class="dialog-body" id="detailBody"></div>
   </dialog>
   <script src="./config.js"></script>
+  <dialog id="codesDialog">
+    <div class="dialog-head"><h3 id="codesTitle">Codeliste</h3><button id="closeCodes" class="button soft">Schließen</button></div>
+    <div class="dialog-body"><p>Vertraulich aufbewahren. Namen ausschließlich handschriftlich ergänzen. Nur den jeweiligen persönlichen Code aushändigen.</p><button id="printCodes" class="button primary">Codeliste drucken</button><div id="codesBody"></div></div>
+  </dialog>
+  <script src="./api.js"></script>
   <script src="./teacher.js"></script>
 </body>
 </html>
