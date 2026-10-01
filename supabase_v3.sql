@@ -23,8 +23,8 @@ create table if not exists public.course_students (
   id uuid primary key default gen_random_uuid(),
   course_id uuid not null references public.courses(id) on delete cascade,
   seat integer not null check (seat between 1 and 100),
-  -- 96 random bits; only the owning teacher may read the printable code list.
-  access_code text not null unique check (access_code ~ '^[a-f0-9]{24}$'),
+  -- New codes: 8 base32 characters (40 random bits). Legacy codes remain valid.
+  access_code text not null unique check (access_code ~ '^([0123456789abcdefghjkmnpqrstvwxyz]{8}|[a-f0-9]{24})$'),
   unique(course_id, seat)
 );
 create table if not exists public.course_submissions (
@@ -54,17 +54,40 @@ create policy own_submissions on public.course_submissions for select to authent
 drop policy if exists review_own_submissions on public.course_submissions;
 create policy review_own_submissions on public.course_submissions for update to authenticated using (exists (select 1 from public.course_students s join public.courses c on c.id = s.course_id where s.id = student_id and c.teacher_id = auth.uid())) with check (exists (select 1 from public.course_students s join public.courses c on c.id = s.course_id where s.id = student_id and c.teacher_id = auth.uid()));
 
+-- Also update the constraint on an existing installation.
+alter table public.course_students drop constraint if exists course_students_access_code_check;
+alter table public.course_students add constraint course_students_access_code_check
+  check (access_code ~ '^([0123456789abcdefghjkmnpqrstvwxyz]{8}|[a-f0-9]{24})$');
+
+create or replace function public.new_student_code() returns text
+language plpgsql volatile set search_path = '' as $$
+declare
+  alphabet constant text := '0123456789abcdefghjkmnpqrstvwxyz';
+  bits bigint := ('x' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 10))::bit(40)::bigint;
+  result text := '';
+begin
+  for i in 1..8 loop
+    result := substr(alphabet, (bits & 31)::integer + 1, 1) || result;
+    bits := bits >> 5;
+  end loop;
+  return result;
+end $$;
+revoke all on function public.new_student_code() from public, anon, authenticated;
+
 create or replace function public.create_course(p_name text, p_count integer) returns uuid
 language plpgsql security definer set search_path = '' as $$
-declare v_id uuid; v_i integer;
+declare v_id uuid; v_i integer; v_student uuid;
 begin
   if not exists(select 1 from public.teacher_profiles where user_id = auth.uid()) then raise exception 'Kein Lehrerzugang.'; end if;
   if p_name is null or char_length(trim(p_name)) not between 1 and 80 or p_count is null or p_count not between 1 and 100 then raise exception 'Kursname und 1–100 Schülerplätze angeben.'; end if;
   insert into public.courses(teacher_id, name) values(auth.uid(), trim(p_name)) returning id into v_id;
   for v_i in 1..p_count loop
-    -- UUID v4 contains 122 random bits; take 96 bits outside the version/variant fields.
-    insert into public.course_students(course_id, seat, access_code)
-      values(v_id, v_i, substr(replace(gen_random_uuid()::text, '-', ''), 1, 12) || substr(replace(gen_random_uuid()::text, '-', ''), 1, 12));
+    loop
+      insert into public.course_students(course_id, seat, access_code)
+        values(v_id, v_i, public.new_student_code())
+        on conflict (access_code) do nothing returning id into v_student;
+      exit when v_student is not null;
+    end loop;
   end loop;
   return v_id;
 end $$;
@@ -73,9 +96,16 @@ create or replace function public.replace_student_code(p_student uuid) returns t
 language plpgsql security definer set search_path = '' as $$
 declare v_code text;
 begin
-  update public.course_students s set access_code = substr(replace(gen_random_uuid()::text, '-', ''), 1, 12) || substr(replace(gen_random_uuid()::text, '-', ''), 1, 12)
-  where s.id = p_student and exists(select 1 from public.courses c where c.id = s.course_id and c.teacher_id = auth.uid())
-  returning access_code into v_code;
+  loop
+    begin
+      update public.course_students s set access_code = public.new_student_code()
+      where s.id = p_student and exists(select 1 from public.courses c where c.id = s.course_id and c.teacher_id = auth.uid())
+      returning access_code into v_code;
+      exit;
+    exception when unique_violation then
+      -- Retry the very unlikely random-code collision.
+    end;
+  end loop;
   if v_code is null then raise exception 'Schülerplatz nicht gefunden.'; end if;
   return v_code;
 end $$;
@@ -84,7 +114,7 @@ create or replace function public.student_context(p_code text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare v_result jsonb;
 begin
-  if p_code is null or p_code !~ '^[a-f0-9]{24}$' then raise exception 'Zugangscode ungültig.'; end if;
+  if p_code is null or p_code !~ '^([0123456789abcdefghjkmnpqrstvwxyz]{8}|[a-f0-9]{24})$' then raise exception 'Zugangscode ungültig.'; end if;
   select jsonb_build_object('student_id', s.id, 'seat', s.seat, 'course_id', c.id, 'course_name', c.name, 'exchange_open', c.exchange_open)
     into v_result from public.course_students s join public.courses c on c.id = s.course_id where s.access_code = p_code;
   if v_result is null then raise exception 'Zugangscode ungültig oder ersetzt. Bitte die Lehrkraft fragen.'; end if;
@@ -95,7 +125,7 @@ create or replace function public.submit_course_work(p_code text, p_group text, 
 language plpgsql security definer set search_path = '' as $$
 declare v_student uuid; v_id uuid;
 begin
-  if p_code is null or p_code !~ '^[a-f0-9]{24}$' then raise exception 'Zugangscode ungültig.'; end if;
+  if p_code is null or p_code !~ '^([0123456789abcdefghjkmnpqrstvwxyz]{8}|[a-f0-9]{24})$' then raise exception 'Zugangscode ungültig.'; end if;
   -- Row lock makes code replacement and submission mutually exclusive.
   select id into v_student from public.course_students where access_code = p_code for update;
   if v_student is null then raise exception 'Zugangscode ungültig oder ersetzt.'; end if;

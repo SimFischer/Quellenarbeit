@@ -39,7 +39,7 @@ Passwörter nicht in SQL-Skripten, im Repository oder in Codelisten speichern. B
 - **Schülerzugang:** Code eingeben; der Server ordnet den Kurs automatisch zu. Bindestriche und Groß-/Kleinschreibung sind unerheblich.
 - **Abgaben:** Jede Abgabe gehört zu einem festen Schülerplatz. Erneutes Senden ersetzt dessen vorherigen Stand und setzt „gesehen“ zurück. Nach Kurs/Quellengruppe filtern, Antworten ansehen, markieren und als CSV exportieren.
 - **Mischgruppen:** Freigeben/Sperren gilt für den ausgewählten Kurs. Verbundene Geräte prüfen alle acht Sekunden, auch nach dem Weitergehen. Offline ist die Freigabe nicht verfügbar. Bereits geladene Unterrichtsmaterialien sind kein geheim zu haltender Inhalt.
-- **Code verloren:** In der Codeliste „Code ersetzen“. Der alte Code wird für neue Serveranfragen sofort ungültig. Schülerplatz und vorhandene Abgabe bleiben erhalten. Bereits lokal gespeicherte Inhalte lassen sich nicht aus der Ferne zurückrufen.
+- **Code verloren oder zu lang:** In der Codeliste „Code ersetzen“. Neue Codes haben genau 8 Zeichen ohne Bindestriche. Bereits ausgegebene lange Codes bleiben bis zum Ersetzen gültig. Neue Codes haben genau 8 Zeichen ohne Bindestriche. Bereits ausgegebene lange Codes bleiben bis zum Ersetzen gültig. Der alte Code wird für neue Serveranfragen sofort ungültig. Schülerplatz und vorhandene Abgabe bleiben erhalten. Bereits lokal gespeicherte Inhalte lassen sich nicht aus der Ferne zurückrufen.
 
 ## Arbeitsstand und gemeinsam genutzte iPads
 
@@ -49,7 +49,7 @@ Eingaben werden pro Schülerplatz lokal gespeichert; der Zugangscode bleibt nur 
 
 ## Zugriffsmodell
 
-Row Level Security beschränkt Lehrkräfte auf eigene Kurse, Codes und Abgaben. Schüler haben keinen direkten Tabellenzugriff. Zwei eng begrenzte Datenbankfunktionen prüfen den 96-Bit-Zufallscode und liefern nur den Kursstatus bzw. nehmen eine Abgabe entgegen. Die Zuordnung erfolgt serverseitig. Alte Namens-/Zuordnungsfelder werden aus dem Abgabeobjekt entfernt; Freitexte können weiterhin personenbezogene Angaben enthalten. Codes sind persönliche Zugangsschlüssel.
+Row Level Security beschränkt Lehrkräfte auf eigene Kurse, Codes und Abgaben. Schüler haben keinen direkten Tabellenzugriff. Zwei eng begrenzte Datenbankfunktionen prüfen den 8-stelligen Zufallscode (40 Bit) und liefern nur den Kursstatus bzw. nehmen eine Abgabe entgegen. Die Zuordnung erfolgt serverseitig. Alte Namens-/Zuordnungsfelder werden aus dem Abgabeobjekt entfernt; Freitexte können weiterhin personenbezogene Angaben enthalten. Codes sind persönliche Zugangsschlüssel.
 
 Die handschriftliche Zuordnung bedeutet Pseudonymisierung, keine vollständige Anonymität. Aufbewahrung, Löschfristen und schulische Freigabe müssen zum Einsatz passen. Nach Ablauf der Aufbewahrungsfrist kann die Projektadministration Kurse in Supabase löschen; zugehörige Schülerplätze und Abgaben werden mitgelöscht.
 

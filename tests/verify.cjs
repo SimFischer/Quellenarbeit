@@ -22,7 +22,17 @@ async function main() {
   await as('authenticated',teacher1);
   const c1 = (await query("select public.create_course('9a Geschichte',2) id"))[0].id;
   const s1 = await query('select * from public.course_students order by seat');
-  assert.equal(s1.length,2); assert.match(s1[0].access_code,/^[a-f0-9]{24}$/); assert.notEqual(s1[0].access_code,s1[1].access_code);
+  assert.equal(s1.length,2); assert.match(s1[0].access_code,/^[0123456789abcdefghjkmnpqrstvwxyz]{8}$/); assert.notEqual(s1[0].access_code,s1[1].access_code);
+  await db.exec('reset role');
+  const legacyCode = 'abcdef0123456789abcdef01';
+  await query('update public.course_students set access_code=$1 where id=$2',[legacyCode,s1[1].id]);
+  await db.exec(sql); // Existing long codes survive the upgrade.
+  await as('anon');
+  assert.equal((await query('select public.student_context($1) data',[legacyCode]))[0].data.student_id,s1[1].id);
+  await as('authenticated',teacher1);
+  assert.match((await query('select public.replace_student_code($1) code',[s1[1].id]))[0].code,/^[0123456789abcdefghjkmnpqrstvwxyz]{8}$/);
+  await as('anon');
+  await assert.rejects(query('select public.student_context($1)',[legacyCode]));
   await as('authenticated',teacher2);
   assert.equal((await query('select * from public.courses')).length,0);
   const c2 = (await query("select public.create_course('9a Geschichte',1) id"))[0].id;
@@ -124,7 +134,7 @@ async function main() {
     const scripts = [...markup.matchAll(/<script src="([^"]+)"/g)].map(match => match[1]);
     assert.ok(scripts.length >= 2);
     for (const src of scripts) {
-      assert.match(src, /\?v=3\.0\.2$/);
+      assert.match(src, /\?v=3\.0\.3$/);
       assert.ok(fs.readFileSync(root+'sw.js','utf8').includes(src));
     }
   }

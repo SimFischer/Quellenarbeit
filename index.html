@@ -450,7 +450,7 @@
             <h3>Deine Arbeitssitzung</h3>
             <p class="instruction">Meldet euch mit dem persönlichen Zugangscode eurer Lehrkraft an. Euer Kurs wird automatisch zugeordnet. Bitte keine Namen in Antworten eintragen.</p>
             <div class="field-grid">
-              <label>Persönlicher Zugangscode<input id="studentCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"></label>
+              <label>Persönlicher Zugangscode<input id="studentCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="8 Zeichen, z. B. 7KM4W9P2"></label>
               <div><button id="studentLogin" class="button primary" type="button">Mit Code anmelden</button><button id="studentLogout" class="button soft" type="button" hidden>Abmelden</button><p id="studentStatus" role="status"></p></div>
             </div>
             <div class="privacy-note"><span aria-hidden="true">ⓘ</span><span>Eure Antworten werden zunächst nur auf diesem iPad gespeichert. Erst mit „Ergebnisse abgeben“ werden sie an die Lehrkraft übertragen.</span></div>
@@ -703,8 +703,8 @@
   </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="./config.js?v=3.0.2"></script>
-  <script src="./api.js?v=3.0.2"></script>
+  <script src="./config.js?v=3.0.3"></script>
+  <script src="./api.js?v=3.0.3"></script>
   <script>
     let STORAGE_KEY = 'clara-neumann-quellenarbeit-v3-guest';
 
@@ -1227,7 +1227,7 @@
       button.disabled = true;
       try {
         const code = SchoolAPI.normalizeCode(document.getElementById('studentCode').value);
-        if (!/^[a-f0-9]{24}$/.test(code)) throw new Error('Bitte den vollständigen persönlichen Code eingeben. Bindestriche sind optional.');
+        if (!/^([0123456789abcdefghjkmnpqrstvwxyz]{8}|[a-f0-9]{24})$/.test(code)) throw new Error('Bitte euren 8-stelligen Code eingeben. Bisherige lange Codes bleiben ebenfalls gültig.');
         const context = await SchoolAPI.rpc('student_context', {p_code: code});
         sessionStorage.setItem('clara-student-v3', JSON.stringify({...context, code}));
         location.reload();

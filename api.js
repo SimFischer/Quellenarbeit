@@ -43,6 +43,6 @@ window.SchoolAPI = (() => {
     async teacher(path, body, method = 'POST') { return request(path, body, await token(), method); },
     rpc: (name, body) => request(`/rest/v1/rpc/${name}`, body),
     normalizeCode: value => String(value || '').replace(/[\s-]/g, '').toLowerCase(),
-    formatCode: value => String(value || '').toUpperCase().match(/.{1,4}/g)?.join('-') || ''
+    formatCode: value => String(value || '').toUpperCase()
   };
 })();
