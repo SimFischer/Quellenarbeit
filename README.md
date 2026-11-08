@@ -34,6 +34,8 @@ Passwörter nicht in SQL-Skripten, im Repository oder in Codelisten speichern. B
 
 ## Unterrichtsablauf
 
+Nach der Anmeldung öffnet **Anleitung für Lehrkräfte** eine eigene Ansicht im Lehrerbereich. Sie enthält Vorbereitung, Phasenplan, Dossierübersicht, Gruppenschema, Nachbereitung, aufklappbare Hilfe und Datenschutzhinweise. **Anleitung drucken / Als PDF speichern** nutzt den Browserdruck; alle Hilfetexte werden dabei geöffnet, Bedienelemente und Kursdaten ausgeblendet. Nach dem Druck wird der vorherige Aufklappzustand wiederhergestellt. Inhalt und Darstellung liegen getrennt in `teacher-guide.js` und `teacher-guide.css`; Änderungen an den Abläufen sollten auch dort nachgeführt werden.
+
 - **Kurs anlegen:** Kursname und 1–100 Schülerplätze wählen. Gleichnamige Kurse bleiben durch ihre internen IDs getrennt.
 - **Codeliste drucken:** Namen ausschließlich handschriftlich ergänzen. Liste vertraulich verwahren; jedem Schüler nur den eigenen Code geben.
 - **Schülerzugang:** Code eingeben; der Server ordnet den Kurs automatisch zu. Bindestriche und Groß-/Kleinschreibung sind unerheblich.

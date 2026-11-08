@@ -1,10 +1,12 @@
-const CACHE_NAME = 'clara-neumann-v13';
+const CACHE_NAME = 'clara-neumann-v14';
 const CORE_FILES = [
   './',
   './index.html',
   './lehrer.html',
   './config.js?v=3.0.3',
   './teacher.js?v=3.0.3',
+  './teacher-guide.js?v=3.0.3',
+  './teacher-guide.css?v=3.0.3',
   './api.js?v=3.0.3',
   './manifest.webmanifest',
   './icon.svg',
@@ -14,7 +16,7 @@ const CORE_FILES = [
 
 // Diese Dateien werden immer zuerst aus dem Netz geladen, damit Änderungen
 // sofort ankommen. Ohne Verbindung wird die zuletzt gespeicherte Fassung genutzt.
-const ALWAYS_FRESH = /\.(html|js|webmanifest)$|\/$/;
+const ALWAYS_FRESH = /\.(html|js|css|webmanifest)$|\/$/;
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(CORE_FILES)));

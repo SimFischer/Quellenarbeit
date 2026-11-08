@@ -9,6 +9,7 @@
   <meta name="robots" content="noindex,nofollow">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <title>Lehrerbereich · Clara Neumann</title>
+  <link rel="stylesheet" href="./teacher-guide.css?v=3.0.3">
   <style>
     :root { --ink:#191d12; --paper:#f1efe6; --card:#fffdf8; --line:#d7d3c5; --sage:#65724f; --muted:#687064; --blue:#dfe9ed; --red:#8a3f36; --shadow:0 14px 36px rgba(25,29,18,.1); }
     * { box-sizing:border-box; }
@@ -106,7 +107,7 @@
     <section id="dashboardView" class="hidden">
       <div style="display:flex;justify-content:space-between;align-items:start;gap:16px;flex-wrap:wrap">
         <div><h2>Abgaben</h2><p class="lead" id="dashboardSubtitle">Abgaben aus deinen Kursen</p></div>
-        <button id="logoutBtn" class="button soft">Abmelden</button>
+        <div class="course-actions"><button id="openGuide" class="button soft" aria-controls="teacherGuide">Anleitung für Lehrkräfte</button><button id="logoutBtn" class="button soft">Abmelden</button></div>
       </div>
 
       <section class="panel gate-panel">
@@ -155,6 +156,7 @@
   </dialog>
   <script src="./api.js?v=3.0.3"></script>
   <script src="./teacher.js?v=3.0.3"></script>
+  <script src="./teacher-guide.js?v=3.0.3"></script>
 </body>
 </html>
 

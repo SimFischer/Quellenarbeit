@@ -118,6 +118,37 @@ async function main() {
   assert.equal(teacherRequest.path,'/rest/v1/rpc/replace_student_code');
   assert.equal(t.document.querySelector('#codesBody code').textContent,newCode);
   assert.equal(t.document.querySelector('input[type=email]'),null);
+  // The guide is confined to the teacher dashboard and never modifies its data.
+  t.scrollTo=()=>{};
+  t.eval(fs.readFileSync(root+'teacher-guide.js','utf8'));
+  const guide=t.document.querySelector('#teacherGuide');
+  const openGuide=t.document.querySelector('#openGuide');
+  assert.ok(guide.classList.contains('hidden'));
+  t.document.querySelector('#dashboardView').classList.add('hidden');
+  openGuide.click(); assert.ok(guide.classList.contains('hidden'));
+  t.document.querySelector('#dashboardView').classList.remove('hidden');
+  const previousRows=t.document.querySelector('#submissionRows').innerHTML;
+  openGuide.click(); assert.equal(guide.classList.contains('hidden'),false);
+  assert.equal(t.document.activeElement.id,'guideTitle');
+  const faqs=[...guide.querySelectorAll('details')];
+  assert.equal(faqs.length,10); faqs[0].open=true;
+  t.print=()=>{
+    assert.ok(t.document.body.classList.contains('print-guide'));
+    assert.ok(faqs.every(el=>el.open));
+  };
+  t.document.querySelector('#printGuide').click();
+  assert.deepEqual(faqs.map(el=>el.open),[true,...Array(9).fill(false)]);
+  t.dispatchEvent(new t.Event('beforeprint'));
+  assert.ok(faqs.every(el=>el.open));
+  t.dispatchEvent(new t.Event('afterprint'));
+  assert.equal(faqs.filter(el=>el.open).length,1);
+  assert.equal(t.document.body.classList.contains('print-guide'),false);
+  t.document.querySelector('#closeGuide').click();
+  assert.ok(guide.classList.contains('hidden'));
+  assert.equal(t.document.activeElement.id,'openGuide');
+  assert.equal(t.document.querySelector('#submissionRows').innerHTML,previousRows);
+  assert.equal(page.includes('teacher-guide.js'),false);
+  console.log('PASS: teacher-only guide, keyboard focus, return navigation, FAQ print expansion and restoration, dashboard preservation');
   teacherDom.window.close();
   const authDom=new JSDOM('',{url:'https://school.test/',runScripts:'outside-only'});
   const a=authDom.window;let loginBody;
